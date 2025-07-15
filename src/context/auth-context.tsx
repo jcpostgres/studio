@@ -24,7 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Start as true
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
@@ -33,10 +33,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const auth = getAuth(app);
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // User is signed in.
         setUser(user);
         setUserId(user.uid);
         
-        // If user profile exists, load it. If not, we're still done loading.
         const appId = process.env.NEXT_PUBLIC_APP_ID || 'default-app-id';
         const userDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'userProfile');
         try {
@@ -49,18 +49,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error("Error loading user profile:", error);
         } finally {
-            // We have a user, so we are not loading anymore.
+            // We have a user and have attempted to load their profile. We are ready.
             setLoading(false);
         }
       } else {
-        // No user is signed in. Start loading and sign in anonymously.
-        setLoading(true);
+        // No user is signed in. Attempt to sign in anonymously.
+        // Keep loading true until we get a user.
         signInAnonymously(auth).catch((error) => {
           console.error("Automatic anonymous sign-in failed:", error);
-          // Stop loading even if sign-in fails to prevent getting stuck.
+          // If sign-in fails, stop loading to prevent being stuck.
           setLoading(false);
         });
-        // State will be updated in the next onAuthStateChanged call when sign-in completes.
       }
     });
 

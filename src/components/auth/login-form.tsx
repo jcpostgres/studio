@@ -19,7 +19,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { saveUserProfile } from "@/lib/actions/user.actions";
 import { Loader2 } from "lucide-react";
-import { getAuth } from "firebase/auth";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -43,7 +42,6 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     
-    // Use the userId from the hook, which is now reliable
     if (!userId) {
       toast({
         variant: "destructive",
