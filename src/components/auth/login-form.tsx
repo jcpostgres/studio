@@ -27,7 +27,7 @@ const formSchema = z.object({
 
 export function LoginForm() {
   const router = useRouter();
-  const { userId } = useAuth();
+  const { getUserId } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -40,19 +40,20 @@ export function LoginForm() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!userId) {
-      toast({
-        variant: "destructive",
-        title: "Authentication Error",
-        description: "Could not find user. Please try again.",
-      });
-      return;
-    }
-
     setIsLoading(true);
     try {
+      const currentUserId = await getUserId();
+      if (!currentUserId) {
+        toast({
+          variant: "destructive",
+          title: "Authentication Error",
+          description: "Could not find user. Please try again.",
+        });
+        return;
+      }
+
       await saveUserProfile({
-        userId,
+        userId: currentUserId,
         name: values.name,
         email: values.email,
       });
