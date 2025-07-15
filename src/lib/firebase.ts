@@ -12,21 +12,30 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Validate that all required environment variables are present
 const missingConfig = Object.entries(firebaseConfig).find(([key, value]) => !value);
 
-if (missingConfig) {
-  const errorMessage = `Missing Firebase config: NEXT_PUBLIC_FIREBASE_${missingConfig[0].toUpperCase()}. Please add it to your .env file.`;
-  console.error(errorMessage);
-  // Throw an error to stop initialization if config is missing
-  // This prevents the app from running with an invalid configuration
-  throw new Error(errorMessage);
+let app;
+let auth;
+let db;
+
+try {
+  if (missingConfig) {
+    const varName = `NEXT_PUBLIC_FIREBASE_${missingConfig[0].replace(/([A-Z])/g, '_$1').toUpperCase()}`;
+    throw new Error(`Missing Firebase config. Please create a .env file (or copy .env.example) and set the ${varName} variable.`);
+  }
+  
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(app);
+  db = getFirestore(app);
+
+} catch (error) {
+    console.error("Firebase initialization error:", (error as Error).message);
+    // Setting these to null so the app doesn't crash elsewhere,
+    // but auth-related functionality will be disabled.
+    app = null;
+    auth = null;
+    db = null;
 }
 
-
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-
-const auth = getAuth(app);
-const db = getFirestore(app);
 
 export { app, auth, db };

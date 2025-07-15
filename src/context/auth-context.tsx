@@ -35,9 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if auth is even available. If firebase.ts threw an error, auth will be null.
-    if (!auth) {
-        console.error("Firebase Auth is not initialized. Check your Firebase config.");
+    // Check if Firebase was initialized correctly. If not, stop loading.
+    if (!auth || !db) {
+        console.error("Firebase Auth or Firestore is not initialized. Check your Firebase config.");
         setLoading(false);
         return;
     }
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentUser);
         setUserId(currentUser.uid);
         
-        const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "default-app-id";
+        const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
         const userDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/profile/userProfile`);
         
         try {
