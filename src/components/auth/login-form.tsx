@@ -73,6 +73,8 @@ export function LoginForm() {
     }
   }
 
+  const isButtonDisabled = isSubmitting || authLoading;
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -102,9 +104,14 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full" disabled={isSubmitting || authLoading}>
-          {isSubmitting || authLoading ? (
+        <Button type="submit" className="w-full" disabled={isButtonDisabled}>
+          {authLoading ? (
             <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Initializing...
+            </>
+          ) : isSubmitting ? (
+             <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Please wait
             </>
