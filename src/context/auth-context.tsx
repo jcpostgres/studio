@@ -54,17 +54,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Error loading user profile:", error);
           setUserProfile(null);
         }
-
+        // Authentication is ready
+        setLoading(false);
       } else {
-        // If no user, sign in anonymously
+        // If no user, sign in anonymously and the listener will pick it up
         try {
           await signInAnonymously(auth);
-          // The onAuthStateChanged listener will handle the new user state
         } catch (error) {
           console.error("Anonymous sign-in failed:", error);
+          setLoading(false); // Stop loading even if anonymous sign-in fails
         }
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
