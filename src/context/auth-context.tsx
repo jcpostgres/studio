@@ -35,6 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         setUser(user);
         setUserId(user.uid);
+        
+        // If user profile exists, load it. If not, we're still done loading.
         const appId = process.env.NEXT_PUBLIC_APP_ID || 'default-app-id';
         const userDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'userProfile');
         try {
@@ -47,15 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error("Error loading user profile:", error);
         } finally {
+            // We have a user, so we are not loading anymore.
             setLoading(false);
         }
       } else {
-        // No user is signed in, sign in anonymously.
+        // No user is signed in. Start loading and sign in anonymously.
+        setLoading(true);
         signInAnonymously(auth).catch((error) => {
           console.error("Automatic anonymous sign-in failed:", error);
-          setLoading(false); // Stop loading even if sign-in fails
+          // Stop loading even if sign-in fails to prevent getting stuck.
+          setLoading(false);
         });
-        // State will be updated in the next onAuthStateChanged call
+        // State will be updated in the next onAuthStateChanged call when sign-in completes.
       }
     });
 

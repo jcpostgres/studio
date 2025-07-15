@@ -28,7 +28,7 @@ const formSchema = z.object({
 
 export function LoginForm() {
   const router = useRouter();
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, userId } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,11 +43,8 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     
-    // Get the current user directly from Firebase auth to ensure it's available
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
-
-    if (!currentUser) {
+    // Use the userId from the hook, which is now reliable
+    if (!userId) {
       toast({
         variant: "destructive",
         title: "Authentication Error",
@@ -59,7 +56,7 @@ export function LoginForm() {
 
     try {
       await saveUserProfile({
-        userId: currentUser.uid,
+        userId: userId,
         name: values.name,
         email: values.email,
       });
