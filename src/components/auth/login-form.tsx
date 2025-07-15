@@ -19,6 +19,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { saveUserProfile } from "@/lib/actions/user.actions";
 import { Loader2 } from "lucide-react";
+import { getAuth } from "firebase/auth";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -27,7 +28,7 @@ const formSchema = z.object({
 
 export function LoginForm() {
   const router = useRouter();
-  const { userId, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -41,11 +42,16 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    if (!userId) {
+    
+    // Get the current user directly from Firebase auth to ensure it's available
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
       toast({
         variant: "destructive",
         title: "Authentication Error",
-        description: "User ID not found. Please wait a moment and try again.",
+        description: "User session not found. Please refresh and try again.",
       });
       setIsSubmitting(false);
       return;
@@ -53,7 +59,7 @@ export function LoginForm() {
 
     try {
       await saveUserProfile({
-        userId: userId,
+        userId: currentUser.uid,
         name: values.name,
         email: values.email,
       });
