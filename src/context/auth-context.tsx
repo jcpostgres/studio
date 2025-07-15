@@ -6,7 +6,6 @@ import {
   useState,
   useEffect,
   ReactNode,
-  useCallback,
 } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
@@ -19,7 +18,6 @@ interface AuthContextType {
   userId: string | null;
   userName: string;
   userEmail: string;
-  getUserId: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,19 +28,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-
-  const getUserId = useCallback(async (): Promise<string | null> => {
-    if (auth.currentUser) {
-      return auth.currentUser.uid;
-    }
-    try {
-      const userCredential = await signInAnonymously(auth);
-      return userCredential.user.uid;
-    } catch (error) {
-      console.error("Anonymous sign-in failed on getUserId:", error);
-      return null;
-    }
-  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -63,7 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.error("Error loading user profile:", error);
         }
       } else {
-        // No user is signed in. Let other parts of the app handle sign-in.
+        // No user is signed in, sign in anonymously
+        signInAnonymously(auth).catch((error) => {
+          console.error("Automatic anonymous sign-in failed:", error);
+        });
         setUser(null);
         setUserId(null);
         setUserName('');
@@ -72,18 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    // Initial check for anonymous user
-    if (!auth.currentUser) {
-      signInAnonymously(auth).catch((error) => {
-        console.error("Initial anonymous sign-in failed:", error);
-      });
-    }
-
-
     return () => unsubscribe();
   }, []);
 
-  const value = { user, loading, userId, userName, userEmail, getUserId };
+  const value = { user, loading, userId, userName, userEmail };
 
   return (
     <AuthContext.Provider value={value}>

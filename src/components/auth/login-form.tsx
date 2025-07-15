@@ -27,7 +27,7 @@ const formSchema = z.object({
 
 export function LoginForm() {
   const router = useRouter();
-  const { getUserId } = useAuth();
+  const { userId } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -41,19 +41,19 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    try {
-      const currentUserId = await getUserId();
-      if (!currentUserId) {
-        toast({
-          variant: "destructive",
-          title: "Authentication Error",
-          description: "Could not find user. Please try again.",
-        });
-        return;
-      }
+    if (!userId) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: "Could not find user. Please try again.",
+      });
+      setIsLoading(false);
+      return;
+    }
 
+    try {
       await saveUserProfile({
-        userId: currentUserId,
+        userId: userId,
         name: values.name,
         email: values.email,
       });
@@ -102,7 +102,7 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full" disabled={isLoading || !userId}>
           {isLoading ? (
             <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
