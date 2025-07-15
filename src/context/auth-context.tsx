@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -34,8 +35,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check if auth is even available. If firebase.ts threw an error, auth will be null.
+    if (!auth) {
+        console.error("Firebase Auth is not initialized. Check your Firebase config.");
+        setLoading(false);
+        return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true);
       if (currentUser) {
         setUser(currentUser);
         setUserId(currentUser.uid);
@@ -54,15 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Error loading user profile:", error);
           setUserProfile(null);
         }
-        // Authentication is ready
         setLoading(false);
       } else {
-        // If no user, sign in anonymously and the listener will pick it up
         try {
           await signInAnonymously(auth);
         } catch (error) {
           console.error("Anonymous sign-in failed:", error);
-          setLoading(false); // Stop loading even if anonymous sign-in fails
+          setLoading(false); 
         }
       }
     });
