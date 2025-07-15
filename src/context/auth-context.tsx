@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -24,21 +25,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); // Start as true
+  const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
     const auth = getAuth(app);
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // User is signed in.
-        setUser(user);
-        setUserId(user.uid);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setUserId(currentUser.uid);
         
         const appId = process.env.NEXT_PUBLIC_APP_ID || 'default-app-id';
-        const userDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'userProfile');
+        const userDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/profile`, 'userProfile');
         try {
             const userDocSnap = await getDoc(userDocRef);
             if (userDocSnap.exists()) {
@@ -49,15 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error("Error loading user profile:", error);
         } finally {
-            // We have a user and have attempted to load their profile. We are ready.
             setLoading(false);
         }
       } else {
-        // No user is signed in. Attempt to sign in anonymously.
-        // Keep loading true until we get a user.
         signInAnonymously(auth).catch((error) => {
           console.error("Automatic anonymous sign-in failed:", error);
-          // If sign-in fails, stop loading to prevent being stuck.
           setLoading(false);
         });
       }
