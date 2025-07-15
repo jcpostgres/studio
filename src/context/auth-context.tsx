@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -9,66 +8,71 @@ import {
   ReactNode,
 } from "react";
 import type { User } from "firebase/auth";
-import { onAuthStateChanged, signInAnonymously, getAuth } from "firebase/auth";
-import { app, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import { doc, getDoc, DocumentData } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+
+interface UserProfile extends DocumentData {
+  name?: string;
+  email?: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
   userId: string | null;
-  userName: string;
-  userEmail: string;
+  userProfile: UserProfile | null;
+  loading: boolean;
+  isAuthReady: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const auth = getAuth(app);
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true);
       if (currentUser) {
         setUser(currentUser);
         setUserId(currentUser.uid);
         
-        const appId = process.env.NEXT_PUBLIC_APP_ID || 'default-app-id';
-        const userDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/profile`, 'userProfile');
+        const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "default-app-id";
+        const userDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/profile/userProfile`);
+        
         try {
-            const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists()) {
-                const profile = userDocSnap.data();
-                setUserName(profile.name || '');
-                setUserEmail(profile.email || '');
-            }
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            setUserProfile(userDocSnap.data());
+          } else {
+            setUserProfile(null);
+          }
         } catch (error) {
-            console.error("Error loading user profile:", error);
-        } finally {
-            setLoading(false);
+          console.error("Error loading user profile:", error);
+          setUserProfile(null);
         }
+
       } else {
-        signInAnonymously(auth).catch((error) => {
-          console.error("Automatic anonymous sign-in failed:", error);
-          setLoading(false);
-        });
+        // If no user, sign in anonymously
+        try {
+          await signInAnonymously(auth);
+          // The onAuthStateChanged listener will handle the new user state
+        } catch (error) {
+          console.error("Anonymous sign-in failed:", error);
+        }
       }
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  const value = { user, loading, userId, userName, userEmail };
+  const value = { user, userId, userProfile, loading, isAuthReady: !loading && !!user };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
