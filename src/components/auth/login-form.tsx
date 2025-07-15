@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { saveUserProfile } from "@/lib/actions/user.actions";
+import { auth } from "@/lib/firebase";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "El nombre es requerido." }),
@@ -28,7 +29,7 @@ const formSchema = z.object({
 export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { userId, userProfile, isAuthReady, loading: authLoading } = useAuth();
+  const { userProfile, isAuthReady, loading: authLoading } from useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -56,7 +57,9 @@ export function LoginForm() {
   }, [userProfile, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!userId) {
+    // Direct check for firebase user to prevent race conditions
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
       toast({
         variant: "destructive",
         title: "Error de Autenticación",
@@ -64,6 +67,7 @@ export function LoginForm() {
       });
       return;
     }
+    const userId = currentUser.uid;
 
     const result = await saveUserProfile({ userId, ...values });
 

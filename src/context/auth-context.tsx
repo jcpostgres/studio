@@ -35,7 +35,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if Firebase was initialized correctly. If not, stop loading.
     if (!auth || !db) {
         console.error("Firebase Auth or Firestore is not initialized. Check your Firebase config.");
         setLoading(false);
@@ -43,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true);
       if (currentUser) {
         setUser(currentUser);
         setUserId(currentUser.uid);
