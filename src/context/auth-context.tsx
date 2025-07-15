@@ -8,8 +8,8 @@ import {
   ReactNode,
 } from "react";
 import type { User } from "firebase/auth";
-import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, signInAnonymously, getAuth } from "firebase/auth";
+import { app, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 interface AuthContextType {
@@ -30,11 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
+    const auth = getAuth(app);
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUser(user);
         setUserId(user.uid);
-        // Load user profile
         const appId = process.env.NEXT_PUBLIC_APP_ID || 'default-app-id';
         const userDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'userProfile');
         try {
@@ -46,18 +46,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         } catch (error) {
             console.error("Error loading user profile:", error);
+        } finally {
+            setLoading(false);
         }
       } else {
-        // No user is signed in, sign in anonymously
+        // No user is signed in, sign in anonymously.
         signInAnonymously(auth).catch((error) => {
           console.error("Automatic anonymous sign-in failed:", error);
+          setLoading(false); // Stop loading even if sign-in fails
         });
-        setUser(null);
-        setUserId(null);
-        setUserName('');
-        setUserEmail('');
+        // State will be updated in the next onAuthStateChanged call
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -67,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 }
