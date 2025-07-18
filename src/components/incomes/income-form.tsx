@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -20,16 +20,18 @@ import type { Income, Account } from "@/lib/types";
 import { saveIncome } from "@/lib/actions/incomes.actions";
 import { Loader2 } from "lucide-react";
 
+const serviceDetailSchema = z.object({
+  name: z.string(),
+  amount: z.coerce.number().min(0.01, "El monto debe ser mayor a 0."),
+});
+
 const formSchema = z.object({
   date: z.string().min(1, "La fecha es requerida."),
   client: z.string().min(2, "El nombre del cliente es requerido."),
   brandName: z.string().optional(),
   country: z.string().min(1, "El país es requerido."),
   services: z.array(z.string()).min(1, "Debes seleccionar al menos un servicio."),
-  servicesDetails: z.array(z.object({
-    name: z.string(),
-    amount: z.coerce.number().min(0.01, "El monto debe ser mayor a 0."),
-  })),
+  servicesDetails: z.array(serviceDetailSchema),
   amountPaid: z.coerce.number().min(0, "El monto pagado no puede ser negativo."),
   paymentAccount: z.string().min(1, "La cuenta de pago es requerida."),
   responsible: z.string().min(1, "El responsable es requerido."),
@@ -89,7 +91,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   const servicesDetails = form.watch("servicesDetails");
 
   const totalContractedAmount = useMemo(() => {
-    return servicesDetails.reduce((sum, service) => sum + service.amount, 0);
+    return servicesDetails.reduce((sum, service) => sum + (service.amount || 0), 0);
   }, [servicesDetails]);
 
   const commissionRate = useMemo(() => {
@@ -193,7 +195,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
             )}/>
         </div>
 
-        <FormField control={form.control} name="services" render={({ field }) => (
+        <FormField control={form.control} name="services" render={() => (
             <FormItem>
                 <FormLabel>Servicios Contratados</FormLabel>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -306,4 +308,3 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     </Form>
   );
 }
-
