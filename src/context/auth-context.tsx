@@ -30,6 +30,17 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Mocked user data for development without login
+  const [user] = useState<User | null>({ uid: "dev_user" } as User);
+  const [userId] = useState<string | null>("dev_user_id");
+  const [userProfile] = useState<UserProfile | null>({ name: "Desarrollador", email: "dev@example.com" });
+  const [loading] = useState(false);
+  const [configError] = useState(false);
+  const [isAuthReady] = useState(true);
+
+  // The original Firebase logic is commented out below to bypass login.
+  // To re-enable login, uncomment the useEffect block and remove the mocked state above.
+  /*
   const [user, setUser] = useState<User | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -82,8 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => unsubscribe();
   }, []);
+  */
 
-  const value = { user, userId, userProfile, loading, isAuthReady: !loading && !!user, configError };
+  const value = { user, userId, userProfile, loading, isAuthReady, configError };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

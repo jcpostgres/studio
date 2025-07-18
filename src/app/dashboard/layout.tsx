@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect } from "react";
@@ -16,16 +17,16 @@ export default function DashboardLayout({
   const { isAuthReady, userProfile, loading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !isAuthReady) {
-      router.replace("/login");
-    }
-     if (isAuthReady && !userProfile) {
-      router.replace("/login");
-    }
-  }, [isAuthReady, userProfile, loading, router]);
+  // useEffect(() => {
+  //   if (!loading && !isAuthReady) {
+  //     router.replace("/login");
+  //   }
+  //    if (isAuthReady && !userProfile) {
+  //     router.replace("/login");
+  //   }
+  // }, [isAuthReady, userProfile, loading, router]);
 
-  if (loading || !isAuthReady || !userProfile) {
+  if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
