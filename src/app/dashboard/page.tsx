@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Landmark, FileText, ArrowUp, ArrowDown, Wallet } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, where, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import type { Income, Expense, Account, Transaction as TransactionType, PayrollPayment } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
@@ -24,73 +24,39 @@ export default function DashboardPage() {
     useEffect(() => {
         if (!userId || !db) return;
 
-        const currentMonth = new Date().getMonth();
-        const currentYear = new Date().getFullYear();
-        const today = new Date().toISOString().split('T')[0];
-        setMonthName(new Date().toLocaleString('es-ES', { month: 'long' }));
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        const today = now.toISOString().split('T')[0];
+        setMonthName(now.toLocaleString('es-ES', { month: 'long' }));
         
-        const incomesRef = collection(db, `users/${userId}/incomes`);
-        const expensesRef = collection(db, `users/${userId}/expenses`);
-        const payrollRef = collection(db, `users/${userId}/payrollPayments`);
-        const transactionsRef = collection(db, `users/${userId}/transactions`);
-        
-        const unsubscribeIncomes = onSnapshot(incomesRef, (snapshot) => {
-            const incomes = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Income);
-            
-            const filteredIncomes = incomes.filter(inc => {
-                const date = new Date(inc.date);
+        let allIncomes: Income[] = [];
+        let allExpenses: Expense[] = [];
+        let allPayrollPayments: PayrollPayment[] = [];
+        let allTransactions: TransactionType[] = [];
+
+        const parseDate = (dateString: string) => {
+            const [year, month, day] = dateString.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        };
+
+        const updateAllData = () => {
+            const filteredIncomes = allIncomes.filter(inc => {
+                const date = parseDate(inc.date);
                 return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
             });
             const totalIncome = filteredIncomes.reduce((sum, inc) => sum + (inc.amountWithCommission || 0), 0);
             
-            setMonthlyData(prev => ({ ...prev, income: totalIncome, utility: totalIncome - prev.expense }));
-            updateTodayTransactions({ incomes });
-        });
-
-        const unsubscribeExpenses = onSnapshot(expensesRef, (snapshot) => {
-            const expenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Expense);
-            const filteredExpenses = expenses.filter(exp => {
-                const date = new Date(exp.date);
+            const filteredExpenses = allExpenses.filter(exp => {
+                const date = parseDate(exp.date);
                 return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
             });
             const totalExpense = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-            
-            setMonthlyData(prev => ({ ...prev, expense: totalExpense, utility: prev.income - totalExpense }));
-            updateTodayTransactions({ expenses });
-        });
 
-        const unsubscribePayroll = onSnapshot(payrollRef, (snapshot) => {
-            const payrollPayments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as PayrollPayment);
-            updateTodayTransactions({ payrollPayments });
-        });
+            setMonthlyData({ income: totalIncome, expense: totalExpense, utility: totalIncome - totalExpense });
 
-        const unsubscribeTransactions = onSnapshot(transactionsRef, (snapshot) => {
-            const transactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as TransactionType);
-            updateTodayTransactions({ transactions });
-        });
-        
-        const accountsRef = collection(db, `users/${userId}/accounts`);
-        const unsubscribeAccounts = onSnapshot(accountsRef, (snapshot) => {
-            const cashAccount = snapshot.docs
-              .map(doc => doc.data() as Account)
-              .find(acc => acc.name === "Efectivo (Caja)");
-            setCurrentCash(cashAccount?.balance || 0);
-            setLoading(false);
-        });
-
-        let allData: {
-            incomes?: Income[],
-            expenses?: Expense[],
-            payrollPayments?: PayrollPayment[],
-            transactions?: TransactionType[]
-        } = {};
-
-        const updateTodayTransactions = (newData: typeof allData) => {
-             allData = { ...allData, ...newData };
-             const { incomes = [], expenses = [], payrollPayments = [], transactions = [] } = allData;
-             
-             const todayTxns = [
-                ...incomes.filter(inc => inc.date === today).map(inc => ({
+            const todayTxns = [
+                ...allIncomes.filter(inc => inc.date === today).map(inc => ({
                     id: inc.id,
                     type: 'Ingreso',
                     description: `${inc.client} - ${inc.servicesDetails.map(s => s.name).join(', ')}`,
@@ -98,7 +64,7 @@ export default function DashboardPage() {
                     isPositive: true,
                     timestamp: inc.timestamp
                 })),
-                ...expenses.filter(exp => exp.date === today).map(exp => ({
+                ...allExpenses.filter(exp => exp.date === today).map(exp => ({
                     id: exp.id,
                     type: 'Gasto',
                     description: exp.category,
@@ -106,7 +72,7 @@ export default function DashboardPage() {
                     isPositive: false,
                     timestamp: exp.timestamp
                 })),
-                ...payrollPayments.filter(pay => pay.date === today).map(pay => ({
+                ...allPayrollPayments.filter(pay => pay.date === today).map(pay => ({
                     id: pay.id,
                     type: 'Nómina',
                     description: `Pago a ${pay.employeeName}`,
@@ -114,7 +80,7 @@ export default function DashboardPage() {
                     isPositive: false,
                     timestamp: pay.timestamp
                 })),
-                ...transactions.filter(trans => trans.date === today).map(trans => ({
+                ...allTransactions.filter(trans => trans.date === today).map(trans => ({
                     id: trans.id,
                     type: trans.type === 'withdrawal' ? 'Alivio/Retiro' : 'Transferencia',
                     description: trans.observations || (trans.type === 'accountTransfer' ? `De ${trans.sourceAccount} a ${trans.destinationAccount}` : trans.account),
@@ -125,7 +91,40 @@ export default function DashboardPage() {
             ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
             setTodayTransactions(todayTxns);
-        }
+        };
+
+        const incomesRef = collection(db, `users/${userId}/incomes`);
+        const unsubscribeIncomes = onSnapshot(incomesRef, (snapshot) => {
+            allIncomes = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Income);
+            updateAllData();
+        });
+
+        const expensesRef = collection(db, `users/${userId}/expenses`);
+        const unsubscribeExpenses = onSnapshot(expensesRef, (snapshot) => {
+            allExpenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Expense);
+            updateAllData();
+        });
+
+        const payrollRef = collection(db, `users/${userId}/payrollPayments`);
+        const unsubscribePayroll = onSnapshot(payrollRef, (snapshot) => {
+            allPayrollPayments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as PayrollPayment);
+            updateAllData();
+        });
+
+        const transactionsRef = collection(db, `users/${userId}/transactions`);
+        const unsubscribeTransactions = onSnapshot(transactionsRef, (snapshot) => {
+            allTransactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as TransactionType);
+            updateAllData();
+        });
+        
+        const accountsRef = collection(db, `users/${userId}/accounts`);
+        const unsubscribeAccounts = onSnapshot(accountsRef, (snapshot) => {
+            const cashAccount = snapshot.docs
+              .map(doc => doc.data() as Account)
+              .find(acc => acc.name === "Efectivo (Caja)");
+            setCurrentCash(cashAccount?.balance || 0);
+            setLoading(false);
+        });
 
         return () => {
             unsubscribeIncomes();
