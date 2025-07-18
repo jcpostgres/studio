@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from "react";
@@ -20,6 +21,7 @@ import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { saveUserProfile } from "@/lib/actions/user.actions";
 import { auth } from "@/lib/firebase";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "El nombre es requerido." }),
@@ -29,7 +31,7 @@ const formSchema = z.object({
 export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { userProfile, isAuthReady, loading: authLoading } = useAuth();
+  const { userProfile, isAuthReady, loading: authLoading, userId, configError } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,16 +59,15 @@ export function LoginForm() {
   }, [userProfile, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+    // Double check userId is present before submitting
+    if (!userId) {
       toast({
         variant: "destructive",
         title: "Error de Autenticación",
-        description: "Sesión de usuario no encontrada. Por favor, recarga la página.",
+        description: "Sesión de usuario no encontrada. Por favor, espera un momento y vuelve a intentarlo.",
       });
       return;
     }
-    const userId = currentUser.uid;
 
     const result = await saveUserProfile({ userId, ...values });
 
@@ -87,6 +88,17 @@ export function LoginForm() {
 
   const isLoading = isSubmitting || authLoading;
 
+  if (configError) {
+    return (
+        <Alert variant="destructive" className="mt-4">
+            <AlertTitle>Error de Configuración</AlertTitle>
+            <AlertDescription>
+                No se pudo conectar a Firebase. Asegúrate de que las variables de entorno (`NEXT_PUBLIC_FIREBASE_*`) estén correctamente configuradas en tu archivo `.env`. Puedes usar `.env.example` como plantilla.
+            </AlertDescription>
+        </Alert>
+    );
+  }
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -101,6 +113,7 @@ export function LoginForm() {
                   placeholder="Tu nombre completo"
                   className="w-full p-3 border border-gray-600 rounded-lg focus:ring-teal-500 focus:border-teal-500 bg-gray-700 text-gray-100"
                   {...field}
+                  disabled={isLoading}
                 />
               </FormControl>
               <FormMessage />
@@ -119,6 +132,7 @@ export function LoginForm() {
                   placeholder="tu@correo.com"
                   className="w-full p-3 border border-gray-600 rounded-lg focus:ring-teal-500 focus:border-teal-500 bg-gray-700 text-gray-100"
                   {...field}
+                  disabled={isLoading}
                 />
               </FormControl>
               <FormMessage />

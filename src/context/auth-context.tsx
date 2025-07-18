@@ -24,6 +24,7 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   isAuthReady: boolean;
+  configError: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,10 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
+    // If Firebase config is invalid, auth and db will be null.
     if (!auth || !db) {
-        console.error("Firebase Auth or Firestore is not initialized. Check your Firebase config.");
+        console.error("Firebase Auth or Firestore is not initialized. Check your Firebase config in .env file.");
+        setConfigError(true);
         setLoading(false);
         return;
     }
@@ -65,8 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         try {
           await signInAnonymously(auth);
+          // The listener will catch the new anonymous user and re-run this logic
         } catch (error) {
           console.error("Anonymous sign-in failed:", error);
+          // If sign-in fails, it might be due to network or config issues.
+          // We set loading to false to stop the loading state.
+          setConfigError(true); // Treat this as a config error for the UI
           setLoading(false); 
         }
       }
@@ -75,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const value = { user, userId, userProfile, loading, isAuthReady: !loading && !!user };
+  const value = { user, userId, userProfile, loading, isAuthReady: !loading && !!user, configError };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
