@@ -1,3 +1,4 @@
+
 import { PageHeader } from "@/components/layout/page-header";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import {
@@ -10,17 +11,17 @@ import {
 
 export default function NewExpensePage() {
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
+    <>
       <PageHeader
-        title="New Expense"
-        description="Add a new expense to your records. Use our AI to suggest a category!"
+        title="Registrar Nuevo Gasto"
+        description="Añade un nuevo gasto a tus registros. ¡Usa nuestra IA para sugerir una categoría!"
       />
       <div className="mt-8">
         <Card>
           <CardHeader>
-            <CardTitle>Expense Details</CardTitle>
+            <CardTitle>Detalles del Gasto</CardTitle>
             <CardDescription>
-              Fill out the form below to add a new expense.
+              Completa el formulario para registrar un nuevo gasto.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -28,6 +29,6 @@ export default function NewExpensePage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   );
 }

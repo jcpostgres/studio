@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,135 +9,199 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles } from "lucide-react";
-import { suggestCategories } from "@/lib/actions/expenses.actions";
+import { Loader2, Sparkles, Check, ChevronsUpDown } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
+import type { Account } from "@/lib/types";
+import { suggestCategories, saveExpense } from "@/lib/actions/expenses.actions";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
-  description: z
-    .string()
-    .min(3, { message: "Description must be at least 3 characters." }),
-  category: z
-    .string()
-    .min(2, { message: "Category must be at least 2 characters." }),
-  amount: z.coerce.number().positive({ message: "Amount must be positive." }),
+  date: z.string().min(1, "La fecha es requerida."),
+  type: z.enum(["fijo", "variable"], { required_error: "El tipo de gasto es requerido." }),
+  category: z.string().min(2, "La categoría es requerida."),
+  amount: z.coerce.number().positive("El monto debe ser un número positivo."),
+  paymentAccount: z.string().min(1, "La cuenta de pago es requerida."),
+  responsible: z.string().optional(),
+  observations: z.string().optional(),
 });
+
+type ExpenseFormValues = z.infer<typeof formSchema>;
 
 export function ExpenseForm() {
   const router = useRouter();
+  const { userId } = useAuth();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [existingCategories, setExistingCategories] = useState<string[]>([]);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      description: "",
+      date: new Date().toISOString().split('T')[0],
+      type: "variable",
       category: "",
       amount: 0,
+      paymentAccount: "",
+      responsible: "",
+      observations: "",
     },
   });
 
+  useEffect(() => {
+    if (!userId) return;
+
+    const accountsUnsub = onSnapshot(collection(db, `users/${userId}/accounts`), (snapshot) => {
+      setAccounts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Account)));
+    });
+
+    const expensesUnsub = onSnapshot(collection(db, `users/${userId}/expenses`), (snapshot) => {
+        const categories = new Set(snapshot.docs.map(doc => doc.data().category as string));
+        setExistingCategories(Array.from(categories));
+    });
+
+    return () => {
+        accountsUnsub();
+        expensesUnsub();
+    };
+  }, [userId]);
+
   const handleSuggestCategories = async () => {
-    const description = form.getValues("description");
+    const description = form.getValues("observations") || form.getValues("category");
     if (!description || description.length < 3) {
       toast({
         variant: "destructive",
-        title: "Description too short",
-        description: "Please enter a longer description to get suggestions.",
+        title: "Descripción muy corta",
+        description: "Ingresa una descripción más larga en 'Observaciones' o 'Categoría' para obtener sugerencias.",
       });
       return;
     }
 
     setIsSuggesting(true);
-    setSuggestions([]);
+    setAiSuggestions([]);
     try {
       const result = await suggestCategories(description);
       if (result.success && result.categories) {
-        setSuggestions(result.categories);
+        setAiSuggestions(result.categories);
       } else {
-        toast({
-          variant: "destructive",
-          title: "Suggestion Failed",
-          description: result.message,
-        });
+        toast({ variant: "destructive", title: "Sugerencia fallida", description: result.message });
       }
     } catch (error) {
-       toast({
-          variant: "destructive",
-          title: "Error",
-          description: "An unexpected error occurred.",
-        });
+       toast({ variant: "destructive", title: "Error", description: "Ocurrió un error inesperado." });
     } finally {
         setIsSuggesting(false);
     }
   };
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
-    // Here you would typically call a server action to save the expense
-    console.log(values);
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-    toast({
-      title: "Expense Saved!",
-      description: `"${values.description}" has been recorded.`,
-    });
-    setIsLoading(false);
-    router.push("/dashboard/expenses");
+  async function onSubmit(values: ExpenseFormValues) {
+    if (!userId) {
+        toast({ variant: "destructive", title: "Error", description: "Usuario no autenticado." });
+        return;
+    }
+    setIsSubmitting(true);
+    
+    const result = await saveExpense({ userId, expenseData: values });
+
+    if (result.success) {
+        toast({ title: "Éxito", description: result.message });
+        router.push("/dashboard/expenses");
+    } else {
+        toast({ variant: "destructive", title: "Error al guardar", description: result.message });
+    }
+    setIsSubmitting(false);
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Description</FormLabel>
-              <FormControl>
-                <Textarea placeholder="e.g., Monthly software subscription" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <FormField control={form.control} name="date" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Fecha del Gasto</FormLabel>
+                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormMessage />
+                </FormItem>
+            )}/>
+             <FormField control={form.control} name="type" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Tipo de Gasto</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Selecciona un tipo" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                            <SelectItem value="variable">Variable</SelectItem>
+                            <SelectItem value="fijo">Fijo</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+            )}/>
+        </div>
+
         <FormField
           control={form.control}
           name="category"
           render={({ field }) => (
-            <FormItem>
+            <FormItem className="flex flex-col">
               <div className="flex items-center justify-between">
-                <FormLabel>Category</FormLabel>
+                <FormLabel>Categoría</FormLabel>
                 <Button type="button" variant="outline" size="sm" onClick={handleSuggestCategories} disabled={isSuggesting}>
-                   {isSuggesting ? (
-                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                   ) : (
-                     <Sparkles className="mr-2 h-4 w-4" />
-                   )}
-                  Suggest
+                   {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  Sugerir con IA
                 </Button>
               </div>
-              <FormControl>
-                <Input placeholder="e.g., Software" {...field} />
-              </FormControl>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
+                    >
+                      {field.value ? existingCategories.find(c => c === field.value) || field.value : "Selecciona o escribe una categoría"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput placeholder="Buscar categoría..." onValueChange={field.onChange} defaultValue={field.value}/>
+                    <CommandEmpty>No se encontró la categoría.</CommandEmpty>
+                    <CommandGroup>
+                        <CommandList>
+                            {existingCategories.map((category) => (
+                                <CommandItem
+                                value={category}
+                                key={category}
+                                onSelect={() => {
+                                    form.setValue("category", category, { shouldValidate: true })
+                                }}
+                                >
+                                <Check className={cn("mr-2 h-4 w-4", category === field.value ? "opacity-100" : "opacity-0")}/>
+                                {category}
+                                </CommandItem>
+                            ))}
+                        </CommandList>
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <FormMessage />
-              {suggestions.length > 0 && (
+              {aiSuggestions.length > 0 && (
                 <FormDescription>
-                  AI Suggestions:
+                  Sugerencias de IA:
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {suggestions.map((s, i) => (
+                    {aiSuggestions.map((s, i) => (
                         <Button type="button" key={i} variant="secondary" size="sm" onClick={() => form.setValue('category', s, { shouldValidate: true })}>
                             {s}
                         </Button>
@@ -147,30 +212,47 @@ export function ExpenseForm() {
             </FormItem>
           )}
         />
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <FormField control={form.control} name="amount" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Monto</FormLabel>
+                    <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
+                    <FormMessage />
+                </FormItem>
+            )}/>
+            <FormField control={form.control} name="paymentAccount" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Cuenta de Pago</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                            {accounts.map(account => <SelectItem key={account.id} value={account.id}>{account.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+            )}/>
+        </div>
 
-        <FormField
-          control={form.control}
-          name="amount"
-          render={({ field }) => (
+        <FormField control={form.control} name="responsible" render={({ field }) => (
             <FormItem>
-              <FormLabel>Amount</FormLabel>
-              <FormControl>
-                <Input type="number" placeholder="0.00" {...field} />
-              </FormControl>
-              <FormMessage />
+                <FormLabel>Responsable (Opcional)</FormLabel>
+                <FormControl><Input placeholder="Ej. Juan Pérez" {...field} /></FormControl>
+                <FormMessage />
             </FormItem>
-          )}
-        />
+        )}/>
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? (
-            <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-            </>
-          ) : (
-            "Save Expense"
-          )}
+        <FormField control={form.control} name="observations" render={({ field }) => (
+            <FormItem>
+                <FormLabel>Observaciones (Opcional)</FormLabel>
+                <FormControl><Textarea placeholder="Añade detalles o una descripción para obtener mejores sugerencias de la IA" {...field} /></FormControl>
+                <FormMessage />
+            </FormItem>
+        )}/>
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : "Guardar Gasto"}
         </Button>
       </form>
     </Form>
