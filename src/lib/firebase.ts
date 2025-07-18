@@ -12,28 +12,36 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const missingConfig = Object.entries(firebaseConfig).find(([key, value]) => !value);
+// Check for missing configuration values
+const missingConfig = Object.entries(firebaseConfig)
+  .filter(([key, value]) => !value)
+  .map(([key]) => key);
 
 let app;
 let auth;
 let db;
 
-try {
-  if (missingConfig) {
-    const varName = `NEXT_PUBLIC_FIREBASE_${missingConfig[0].replace(/([A-Z])/g, '_$1').toUpperCase()}`;
-    throw new Error(`Missing Firebase config. Please create a .env file (or copy .env.example) and set the ${varName} variable.`);
-  }
+// Initialize Firebase only if all config values are present
+if (missingConfig.length > 0) {
+  const missingKeys = missingConfig.join(", ");
+  const errorMessage = `Firebase configuration is missing the following keys: ${missingKeys}. Please create a .env file (you can copy .env.example) and add all the required environment variables from your Firebase project settings.`;
+  console.error(errorMessage);
   
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  auth = getAuth(app);
-  db = getFirestore(app);
-
-} catch (error) {
-    console.error("Firebase initialization error:", (error as Error).message);
+  // Set to null to prevent the app from trying to use a partially configured Firebase instance
+  app = null;
+  auth = null;
+  db = null;
+} else {
+  try {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = getFirestore(app);
+  } catch (error) {
+    console.error("Firebase initialization error:", error);
     app = null;
     auth = null;
     db = null;
+  }
 }
-
 
 export { app, auth, db };
