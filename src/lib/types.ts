@@ -1,3 +1,4 @@
+
 export interface IncomeServiceDetail {
     name: string;
     amount: number;
@@ -9,8 +10,8 @@ export interface Income {
     client: string;
     brandName?: string;
     country: string;
-    services: string[];
-    servicesDetails: IncomeServiceDetail[];
+    services: string[]; 
+    servicesDetails: IncomeServiceDetail[]; 
     paymentAccount: string;
     responsible: string;
     observations: string;
