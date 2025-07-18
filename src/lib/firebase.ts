@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore } from "firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -30,8 +30,6 @@ try {
 
 } catch (error) {
     console.error("Firebase initialization error:", (error as Error).message);
-    // Setting these to null so the app doesn't crash elsewhere,
-    // but auth-related functionality will be disabled.
     app = null;
     auth = null;
     db = null;

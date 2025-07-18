@@ -29,7 +29,7 @@ const formSchema = z.object({
 export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { userProfile, isAuthReady, loading: authLoading } from useAuth();
+  const { userProfile, isAuthReady, loading: authLoading } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,7 +57,6 @@ export function LoginForm() {
   }, [userProfile, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    // Direct check for firebase user to prevent race conditions
     const currentUser = auth.currentUser;
     if (!currentUser) {
       toast({
