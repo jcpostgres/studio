@@ -9,7 +9,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Loader2, Plus } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { BarChart2, Coins, Settings } from "lucide-react";
+import { BarChart2, Coins, Home, Settings } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -60,8 +60,7 @@ export default function DashboardLayout({
               <DropdownMenuContent align="center" side="top" className="mb-2">
                 <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/incomes/new')}>Registrar Ingreso</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/expenses/new')}>Registrar Gasto</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/transactions')}>Registrar Alivio / Retiro</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/transactions')}>Registrar Transacción</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/transactions')}>Alivio / Transacción</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

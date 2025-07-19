@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -37,16 +38,15 @@ export function AppHeader() {
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost">
-              <Plus className="h-6 w-6" />
-              <span className="sr-only">Acciones Rápidas</span>
+            <Button size="sm" variant="outline" className="hidden md:flex">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/incomes/new')}>Registrar Ingreso</DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/expenses/new')}>Registrar Gasto</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/transactions')}>Alivio/Retiro</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/transactions')}>Transacción de Cuentas</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleQuickAction('/dashboard/transactions')}>Alivio / Transacción</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
