@@ -13,8 +13,12 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { Expense } from "@/lib/types";
+import { Expense, Account } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/context/auth-context";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 interface ExpensesTableProps {
   expenses: Expense[];
@@ -24,6 +28,24 @@ interface ExpensesTableProps {
 }
 
 export function ExpensesTable({ expenses, onEdit, onDelete, loading }: ExpensesTableProps) {
+  const { userId } = useAuth();
+  const [accountsMap, setAccountsMap] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    if (!userId) return;
+    const accountsRef = collection(db, `users/${userId}/accounts`);
+    const unsubscribe = onSnapshot(accountsRef, (snapshot) => {
+      const newAccountsMap = new Map<string, string>();
+      snapshot.forEach(doc => {
+        const account = doc.data() as Account;
+        newAccountsMap.set(doc.id, account.name);
+      });
+      setAccountsMap(newAccountsMap);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+  
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
   };
@@ -52,15 +74,15 @@ export function ExpensesTable({ expenses, onEdit, onDelete, loading }: ExpensesT
         {expenses.length > 0 ? (
           expenses.map((expense) => (
             <TableRow key={expense.id}>
-              <TableCell>{expense.date}</TableCell>
+              <TableCell>{new Date(expense.date).toLocaleDateString()}</TableCell>
               <TableCell className="font-medium">{expense.category}</TableCell>
               <TableCell className="text-red-400">{formatCurrency(expense.amount)}</TableCell>
               <TableCell>
                  <Badge variant={expense.type === 'fijo' ? "secondary" : "outline"}>
-                    {expense.type === 'fijo' ? 'Fijo' : 'Variable'}
+                    {expense.type.charAt(0).toUpperCase() + expense.type.slice(1)}
                 </Badge>
               </TableCell>
-              <TableCell>{expense.paymentAccount}</TableCell>
+              <TableCell>{accountsMap.get(expense.paymentAccount) || expense.paymentAccount}</TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

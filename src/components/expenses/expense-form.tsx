@@ -118,8 +118,8 @@ export function ExpenseForm() {
         router.push("/dashboard/expenses");
     } else {
         toast({ variant: "destructive", title: "Error al guardar", description: result.message });
+        setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   }
 
   return (
@@ -173,26 +173,26 @@ export function ExpenseForm() {
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
+                <PopoverContent className="w-full p-0" style={{ zIndex: 100 }}>
                   <Command>
-                    <CommandInput placeholder="Buscar categoría..." onValueChange={field.onChange} defaultValue={field.value}/>
-                    <CommandEmpty>No se encontró la categoría.</CommandEmpty>
-                    <CommandGroup>
-                        <CommandList>
-                            {existingCategories.map((category) => (
-                                <CommandItem
-                                value={category}
-                                key={category}
-                                onSelect={() => {
-                                    form.setValue("category", category, { shouldValidate: true })
-                                }}
-                                >
-                                <Check className={cn("mr-2 h-4 w-4", category === field.value ? "opacity-100" : "opacity-0")}/>
-                                {category}
-                                </CommandItem>
-                            ))}
-                        </CommandList>
-                    </CommandGroup>
+                    <CommandInput placeholder="Buscar categoría..." onValueChange={(currentValue) => form.setValue("category", currentValue, { shouldValidate: true })} defaultValue={field.value}/>
+                    <CommandList>
+                      <CommandEmpty>No se encontró la categoría. Puedes crear una nueva.</CommandEmpty>
+                      <CommandGroup>
+                          {existingCategories.map((category) => (
+                              <CommandItem
+                              value={category}
+                              key={category}
+                              onSelect={() => {
+                                  form.setValue("category", category, { shouldValidate: true })
+                              }}
+                              >
+                              <Check className={cn("mr-2 h-4 w-4", category === field.value ? "opacity-100" : "opacity-0")}/>
+                              {category}
+                              </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
                   </Command>
                 </PopoverContent>
               </Popover>
@@ -217,7 +217,7 @@ export function ExpenseForm() {
             <FormField control={form.control} name="amount" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Monto</FormLabel>
-                    <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
+                    <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
                     <FormMessage />
                 </FormItem>
             )}/>

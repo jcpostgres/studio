@@ -1,7 +1,7 @@
 
 "use server";
 
-import { doc, writeBatch, collection } from "firebase/firestore";
+import { doc, writeBatch, collection, getDoc } from "firebase/firestore";
 import { z } from "zod";
 import { suggestExpenseCategories } from "@/ai/flows/suggest-expense-categories";
 import { db } from "@/lib/firebase";
@@ -21,11 +21,11 @@ export async function suggestCategories(description: string) {
 }
 
 const expenseFormSchema = z.object({
-  date: z.string().min(1),
+  date: z.string().min(1, "La fecha es requerida."),
   type: z.enum(["fijo", "variable"]),
-  category: z.string().min(2),
-  amount: z.number().positive(),
-  paymentAccount: z.string().min(1),
+  category: z.string().min(2, "La categoría es requerida."),
+  amount: z.coerce.number().positive("El monto debe ser un número positivo."),
+  paymentAccount: z.string().min(1, "La cuenta de pago es requerida."),
   responsible: z.string().optional(),
   observations: z.string().optional(),
 });
@@ -51,8 +51,13 @@ export async function saveExpense({ userId, expenseData }: SaveExpenseParams) {
 
     // 2. Update the account balance
     const accountRef = doc(db, `users/${userId}/accounts`, validatedData.paymentAccount);
+    const accountSnap = await getDoc(accountRef);
+    if (!accountSnap.exists()) {
+      return { success: false, message: "La cuenta de pago no existe." };
+    }
+    const currentBalance = accountSnap.data()?.balance || 0;
     batch.update(accountRef, {
-        balance: (await (await getDoc(accountRef)).data()?.balance || 0) - validatedData.amount
+        balance: currentBalance - validatedData.amount
     });
 
     await batch.commit();

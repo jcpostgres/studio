@@ -46,9 +46,10 @@ export default function ExpensesPage() {
   
   const filteredExpenses = useMemo(() => {
     return expenses.filter(expense => {
+      const searchStr = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === '' ||
-        expense.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        expense.observations.toLowerCase().includes(searchTerm.toLowerCase());
+        expense.category.toLowerCase().includes(searchStr) ||
+        (expense.observations && expense.observations.toLowerCase().includes(searchStr));
       return matchesSearch;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [expenses, searchTerm]);
@@ -78,8 +79,9 @@ export default function ExpensesPage() {
         const accountRef = doc(db, `users/${userId}/accounts`, expenseToDelete.paymentAccount);
         const accountSnap = await getDoc(accountRef);
         if (accountSnap.exists()){
+             const currentBalance = accountSnap.data()?.balance || 0;
              batch.update(accountRef, {
-                balance: (accountSnap.data()?.balance || 0) + expenseToDelete.amount
+                balance: currentBalance + expenseToDelete.amount
             });
         }
         
@@ -129,12 +131,16 @@ export default function ExpensesPage() {
         </Card>
 
         <div className="mt-8">
-            <ExpensesTable
-                expenses={filteredExpenses}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                loading={loading}
-            />
+            <Card>
+                <CardContent className="p-6">
+                    <ExpensesTable
+                        expenses={filteredExpenses}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        loading={loading}
+                    />
+                </CardContent>
+            </Card>
         </div>
       </div>
       
@@ -156,4 +162,3 @@ export default function ExpensesPage() {
     </>
   );
 }
-
