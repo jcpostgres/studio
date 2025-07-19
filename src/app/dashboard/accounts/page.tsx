@@ -121,7 +121,11 @@ export default function AccountsPage() {
       if (editingAccount) {
         // Update existing account
         const accountDocRef = doc(db, `users/${userId}/accounts`, editingAccount.id);
-        await updateDoc(accountDocRef, accountData);
+        await updateDoc(accountDocRef, {
+            name: accountData.name,
+            commission: accountData.commission,
+            // Balance is not updated on edit
+        });
         toast({
           title: "Éxito",
           description: "Cuenta actualizada correctamente.",

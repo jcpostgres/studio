@@ -64,7 +64,7 @@ export function AccountForm({ onSubmit, account }: AccountFormProps) {
             <FormItem>
               <FormLabel>Saldo Inicial</FormLabel>
               <FormControl>
-                <Input type="number" {...field} />
+                <Input type="number" {...field} disabled={!!account} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -90,4 +90,3 @@ export function AccountForm({ onSubmit, account }: AccountFormProps) {
     </Form>
   );
 }
-
