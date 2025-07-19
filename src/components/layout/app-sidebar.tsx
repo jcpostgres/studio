@@ -8,6 +8,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
@@ -20,30 +21,36 @@ import {
   Users,
   Settings,
   LogOut,
-  Coins,
   ArrowRightLeft,
   Bell,
-  BarChart2
+  BarChart2,
+  FolderKanban,
 } from "lucide-react";
 
-const navItems = [
+const mainNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Inicio" },
   { href: "/dashboard/incomes", icon: Wallet, label: "Ingresos" },
   { href: "/dashboard/expenses", icon: Wallet, label: "Gastos", isFlipped: true },
-  { href: "/dashboard/payroll", icon: Users, label: "Nómina" },
-  { href: "/dashboard/accounts", icon: Landmark, label: "Cuentas" },
-  { href: "/dashboard/clients-debts", icon: Users, label: "Clientes y Deudas" },
   { href: "/dashboard/transactions", icon: ArrowRightLeft, label: "Alivios/Transacciones" },
-  { href: "/dashboard/service-report", icon: BarChart2, label: "Reporte de Servicios" },
-  { href: "/dashboard/reminders", icon: Bell, label: "Recordatorios" },
+];
+
+const reportsNav = [
   { href: "/dashboard/total-general", icon: FileText, label: "Total General" },
-  { href: "/dashboard/settings", icon: Settings, label: "Configuración" },
+  { href: "/dashboard/service-report", icon: BarChart2, label: "Reporte de Servicios" },
+];
+
+const settingsNav = [
+  { href: "/dashboard/accounts", icon: Landmark, label: "Cuentas" },
+  { href: "/dashboard/payroll", icon: Users, label: "Nómina" },
+  { href: "/dashboard/clients-debts", icon: FolderKanban, label: "Clientes y Deudas" },
+  { href: "/dashboard/reminders", icon: Bell, label: "Recordatorios" },
+  { href: "/dashboard/settings", icon: Settings, label: "Configuración General" },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, userProfile } = useAuth();
+  const { userProfile } = useAuth();
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -51,12 +58,32 @@ export function AppSidebar() {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return "";
     return name
       .split(" ")
       .map((n) => n[0])
       .join("")
       .toUpperCase();
   };
+  
+  const renderNav = (items: typeof mainNav) => (
+    items.map((item) => (
+      <SidebarMenuItem key={item.href}>
+        <SidebarMenuButton
+          href={item.href}
+          isActive={pathname === item.href}
+          onClick={(e) => {
+            e.preventDefault();
+            router.push(item.href!);
+          }}
+          tooltip={{content: item.label}}
+        >
+          <item.icon className={item.isFlipped ? "transform -scale-x-100" : ""}/>
+          <span>{item.label}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    ))
+  );
 
   return (
     <>
@@ -75,28 +102,22 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {navItems.map((item) => (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton
-                  href={item.href}
-                  isActive={pathname === item.href}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    router.push(item.href!);
-                  }}
-                  tooltip={{content: item.label}}
-                >
-                  <item.icon className={item.isFlipped ? "transform -scale-x-100" : ""}/>
-                  <span>{item.label}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )
-          )}
+          {renderNav(mainNav)}
+        </SidebarMenu>
+        <SidebarSeparator />
+        <SidebarMenu>
+          <p className="px-2 text-xs font-semibold text-muted-foreground tracking-wider uppercase mb-1 group-data-[collapsible=icon]:hidden">Reportes</p>
+          {renderNav(reportsNav)}
+        </SidebarMenu>
+        <SidebarSeparator />
+        <SidebarMenu>
+          <p className="px-2 text-xs font-semibold text-muted-foreground tracking-wider uppercase mb-1 group-data-[collapsible=icon]:hidden">Configuración</p>
+          {renderNav(settingsNav)}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
         <div className="flex items-center gap-3 p-2">
-          <div className="w-10 h-10 rounded-full bg-cyan-800/50 flex items-center justify-center font-bold text-cyan-300">
+          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">
              {userProfile?.name ? getInitials(userProfile.name) : 'U'}
           </div>
           <div className="flex flex-col truncate">

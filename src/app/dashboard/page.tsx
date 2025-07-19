@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Landmark, FileText, ArrowUp, ArrowDown, Wallet } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -85,7 +85,7 @@ export default function DashboardPage() {
                     type: trans.type === 'withdrawal' ? 'Alivio/Retiro' : 'Transferencia',
                     description: trans.observations || (trans.type === 'accountTransfer' ? `De ${trans.sourceAccount} a ${trans.destinationAccount}` : trans.account),
                     amount: trans.amount,
-                    isPositive: trans.type === 'accountTransfer',
+                    isPositive: trans.type === 'accountTransfer', // This might need refinement
                     timestamp: trans.timestamp
                 }))
             ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -144,17 +144,15 @@ export default function DashboardPage() {
     };
 
     return (
-        <div className="bg-black min-h-screen text-gray-100 p-4">
-            <h2 className="text-2xl font-bold text-teal-400 mb-6 font-sans">Dashboard</h2>
-
-             <div className="bg-gray-800 p-6 rounded-xl shadow-lg mb-6 text-center">
-                <p className="text-gray-400 text-sm mb-2">ID de Usuario:</p>
-                <p className="text-cyan-400 font-mono break-all text-xs">{userId}</p>
+        <div className="space-y-8">
+            <div className="space-y-2">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+                <p className="text-muted-foreground">Un resumen rápido del estado financiero de tu negocio.</p>
             </div>
             
-            <Card className="mb-6 bg-gray-800 border-gray-700">
+            <Card>
                 <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-teal-400">Resumen de {monthName}</CardTitle>
+                    <CardTitle className="text-xl font-semibold">Resumen de {monthName}</CardTitle>
                 </CardHeader>
                 <CardContent>
                    {loading ? (
@@ -164,96 +162,88 @@ export default function DashboardPage() {
                             <Skeleton className="h-8 w-full" />
                        </div>
                    ) : (
-                     <div className="space-y-2 text-base">
-                        <div className="flex justify-between items-center p-2 bg-gray-700 rounded-lg">
-                            <span>Ingresos:</span>
-                            <span className="font-bold text-green-400">{formatCurrency(monthlyData.income)}</span>
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-base">
+                        <div className="p-4 bg-card-foreground/5 rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-1">Ingresos</p>
+                            <p className="text-2xl font-bold text-green-400">{formatCurrency(monthlyData.income)}</p>
                         </div>
-                         <div className="flex justify-between items-center p-2 bg-gray-700 rounded-lg">
-                            <span>Gastos:</span>
-                            <span className="font-bold text-red-400">{formatCurrency(monthlyData.expense)}</span>
+                         <div className="p-4 bg-card-foreground/5 rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-1">Gastos</p>
+                            <p className="text-2xl font-bold text-red-400">{formatCurrency(monthlyData.expense)}</p>
                         </div>
-                         <div className="flex justify-between items-center p-2 bg-gray-700 rounded-lg col-span-2">
-                            <span>Utilidad Neta:</span>
-                            <span className="font-bold text-cyan-400">{formatCurrency(monthlyData.utility)}</span>
+                         <div className="p-4 bg-card-foreground/5 rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-1">Utilidad Neta</p>
+                            <p className="text-2xl font-bold text-cyan-400">{formatCurrency(monthlyData.utility)}</p>
                         </div>
-                         <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg mt-4">
-                            <span>Caja Actual:</span>
-                            <span className="font-bold text-yellow-400">{formatCurrency(currentCash)}</span>
+                         <div className="p-4 bg-card-foreground/5 rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-1">Caja Actual</p>
+                            <p className="text-2xl font-bold text-yellow-400">{formatCurrency(currentCash)}</p>
                         </div>
                      </div>
                    )}
                 </CardContent>
             </Card>
 
-            <Card className="mb-6 bg-gray-800 border-gray-700">
-                <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-gray-200">Acciones Rápidas</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Button variant="outline" className="flex flex-col h-24 justify-center items-center gap-2 text-center bg-blue-500/20 border-blue-500 hover:bg-blue-500/30" onClick={() => router.push('/dashboard/transactions')}>
-                        <Landmark />
-                        <span>Alivio / Transacción</span>
-                        <p className="text-xs text-muted-foreground">Registra retiros o transferencias</p>
-                    </Button>
-                    <Button variant="outline" className="flex flex-col h-24 justify-center items-center gap-2 text-center bg-purple-500/20 border-purple-500 hover:bg-purple-500/30" onClick={() => router.push('/dashboard/total-general')}>
-                        <FileText />
-                        <span>Total General</span>
-                        <p className="text-xs text-muted-foreground">Ver resumen financiero completo</p>
-                    </Button>
-                </CardContent>
-            </Card>
-
-             <Card className="mb-6 bg-gray-800 border-gray-700">
-                <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-gray-200">Estadísticas Rápidas (Mes Actual)</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex flex-col items-center p-4 bg-gray-700 rounded-lg shadow-md">
-                        <ArrowUp className="w-8 h-8 text-teal-400 mb-2" />
-                        <p className="text-sm text-gray-400 mb-1">Ingresos</p>
-                        <p className="text-xl font-bold text-white">{formatCurrency(monthlyData.income)}</p>
-                    </div>
-                    <div className="flex flex-col items-center p-4 bg-gray-700 rounded-lg shadow-md">
-                        <ArrowDown className="w-8 h-8 text-red-400 mb-2" />
-                        <p className="text-sm text-gray-400 mb-1">Gastos</p>
-                        <p className="text-xl font-bold text-white">{formatCurrency(monthlyData.expense)}</p>
-                    </div>
-                    <div className="flex flex-col items-center p-4 bg-gray-700 rounded-lg shadow-md">
-                        <Wallet className="w-8 h-8 text-yellow-400 mb-2" />
-                        <p className="text-sm text-gray-400 mb-1">Efectivo (Caja)</p>
-                        <p className="text-xl font-bold text-white">{formatCurrency(currentCash)}</p>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card className="bg-gray-800 border-gray-700">
-                <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-gray-200">Últimas Transacciones (Hoy)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <Skeleton className="h-24 w-full" />
-                    ) : todayTransactions.length === 0 ? (
-                        <p className="text-gray-400 text-center py-4">No hay transacciones registradas para hoy.</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {todayTransactions.map(transaction => (
-                                <div key={transaction.id} className="bg-gray-700 p-3 rounded-lg flex justify-between items-center">
-                                    <div>
-                                        <p className="text-gray-200 font-semibold">{transaction.type}</p>
-                                        <p className="text-gray-400 text-sm truncate max-w-xs">{transaction.description}</p>
-                                    </div>
-                                    <span className={`font-bold ${transaction.isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                                        {transaction.isPositive ? '+' : '-'}{formatCurrency(transaction.amount)}
-                                    </span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Últimas Transacciones (Hoy)</CardTitle>
+                            <CardDescription>Movimientos registrados en el día de hoy.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {loading ? (
+                                <Skeleton className="h-40 w-full" />
+                            ) : todayTransactions.length === 0 ? (
+                                <p className="text-muted-foreground text-center py-10">No hay transacciones registradas para hoy.</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {todayTransactions.map(transaction => (
+                                        <div key={transaction.id} className="flex justify-between items-center">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`flex items-center justify-center h-10 w-10 rounded-full ${transaction.isPositive ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                                    {transaction.isPositive ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-foreground">{transaction.type}</p>
+                                                    <p className="text-sm text-muted-foreground truncate max-w-xs">{transaction.description}</p>
+                                                </div>
+                                            </div>
+                                            <span className={`font-bold ${transaction.isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                                                {transaction.isPositive ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                            </span>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+                <div>
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Acciones Rápidas</CardTitle>
+                             <CardDescription>Accesos directos a funciones clave.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 gap-4">
+                            <Button variant="outline" className="h-auto py-3 flex flex-col items-start gap-1" onClick={() => router.push('/dashboard/transactions')}>
+                                <div className="flex items-center gap-2">
+                                     <Landmark size={18} />
+                                     <span className="font-semibold">Alivio / Transacción</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground text-left">Registra retiros o transferencias entre tus cuentas.</p>
+                            </Button>
+                            <Button variant="outline" className="h-auto py-3 flex flex-col items-start gap-1" onClick={() => router.push('/dashboard/total-general')}>
+                                 <div className="flex items-center gap-2">
+                                     <FileText size={18} />
+                                     <span className="font-semibold">Total General</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground text-left">Ver resumen financiero completo y detallado.</p>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
         </div>
     );
-
-    
+}
