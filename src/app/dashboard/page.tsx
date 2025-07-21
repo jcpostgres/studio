@@ -156,14 +156,14 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                    {loading ? (
-                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             <Skeleton className="h-24 w-full" />
                             <Skeleton className="h-24 w-full" />
                             <Skeleton className="h-24 w-full" />
                             <Skeleton className="h-24 w-full" />
                        </div>
                    ) : (
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-base">
+                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-base">
                         <div className="p-4 bg-card-foreground/5 rounded-lg">
                             <p className="text-sm text-muted-foreground mb-1">Ingresos</p>
                             <p className="text-2xl font-bold text-green-400">{formatCurrency(monthlyData.income)}</p>
