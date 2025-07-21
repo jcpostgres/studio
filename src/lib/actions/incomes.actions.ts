@@ -18,7 +18,7 @@ const incomeFormSchema = z.object({
   country: z.string().min(1),
   services: z.array(z.string()).min(1),
   servicesDetails: z.array(serviceDetailSchema),
-  amountPaid: z.number().min(0),
+  amountPaid: z.coerce.number().min(0),
   paymentAccount: z.string().min(1),
   responsible: z.string().min(1),
   observations: z.string().optional(),

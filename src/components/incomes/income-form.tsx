@@ -22,7 +22,7 @@ import { Loader2 } from "lucide-react";
 
 const serviceDetailSchema = z.object({
   name: z.string(),
-  amount: z.coerce.number().min(0.01, "El monto debe ser mayor a 0."),
+  amount: z.coerce.number().min(0, "El monto no puede ser negativo."),
 });
 
 const formSchema = z.object({
@@ -91,7 +91,10 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   const watchedPaymentAccount = form.watch("paymentAccount");
 
   const totalContractedAmount = useMemo(() => {
-    return watchedServicesDetails.reduce((sum, service) => sum + (service.amount || 0), 0);
+    return watchedServicesDetails.reduce((sum, service) => {
+      const amount = parseFloat(String(service.amount));
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
   }, [watchedServicesDetails]);
   
   const commissionRate = useMemo(() => {
