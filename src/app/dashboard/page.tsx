@@ -5,14 +5,12 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Landmark, FileText, ArrowUp, ArrowDown } from "lucide-react";
+import { Landmark, FileText, ArrowUp, ArrowDown, Wallet } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import type { Income, Expense, Account, Transaction as TransactionType, PayrollPayment } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
-import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 
 export default function DashboardPage() {
     const { userId } = useAuth();
@@ -145,14 +143,35 @@ export default function DashboardPage() {
         }).format(amount);
     };
 
-    const chartData = [
-      { name: 'Total Mensual', income: monthlyData.income, expense: monthlyData.expense },
-    ];
+    const renderSummaryCards = () => (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-base">
+          <div className="p-4 bg-card-foreground/5 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Ingresos</p>
+              <p className="text-2xl font-bold text-green-400">{formatCurrency(monthlyData.income)}</p>
+          </div>
+            <div className="p-4 bg-card-foreground/5 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Gastos</p>
+              <p className="text-2xl font-bold text-red-400">{formatCurrency(monthlyData.expense)}</p>
+          </div>
+            <div className="p-4 bg-card-foreground/5 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Utilidad Neta</p>
+              <p className="text-2xl font-bold text-cyan-400">{formatCurrency(monthlyData.utility)}</p>
+          </div>
+            <div className="p-4 bg-card-foreground/5 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Efectivo (Caja)</p>
+              <p className="text-2xl font-bold text-yellow-400">{formatCurrency(currentCash)}</p>
+          </div>
+        </div>
+    );
+    
+    const renderSkeleton = (items: number) => (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: items }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full" />
+        ))}
+      </div>
+    );
 
-    const chartConfig = {
-      income: { label: 'Ingresos', color: 'hsl(var(--chart-2))' },
-      expense: { label: 'Gastos', color: 'hsl(var(--chart-1))' },
-    }
 
     return (
         <div className="space-y-8">
@@ -166,84 +185,68 @@ export default function DashboardPage() {
                     <CardTitle className="text-xl font-semibold capitalize">Resumen de {monthName}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                   {loading ? (
-                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                            <Skeleton className="h-24 w-full" />
-                            <Skeleton className="h-24 w-full" />
-                            <Skeleton className="h-24 w-full" />
-                            <Skeleton className="h-24 w-full" />
-                       </div>
-                   ) : (
-                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-base">
-                        <div className="p-4 bg-card-foreground/5 rounded-lg">
-                            <p className="text-sm text-muted-foreground mb-1">Ingresos</p>
-                            <p className="text-2xl font-bold text-green-400">{formatCurrency(monthlyData.income)}</p>
-                        </div>
-                         <div className="p-4 bg-card-foreground/5 rounded-lg">
-                            <p className="text-sm text-muted-foreground mb-1">Gastos</p>
-                            <p className="text-2xl font-bold text-red-400">{formatCurrency(monthlyData.expense)}</p>
-                        </div>
-                         <div className="p-4 bg-card-foreground/5 rounded-lg">
-                            <p className="text-sm text-muted-foreground mb-1">Utilidad Neta</p>
-                            <p className="text-2xl font-bold text-cyan-400">{formatCurrency(monthlyData.utility)}</p>
-                        </div>
-                         <div className="p-4 bg-card-foreground/5 rounded-lg">
-                            <p className="text-sm text-muted-foreground mb-1">Efectivo (Caja)</p>
-                            <p className="text-2xl font-bold text-yellow-400">{formatCurrency(currentCash)}</p>
-                        </div>
-                     </div>
-                   )}
+                   {loading ? renderSkeleton(4) : renderSummaryCards()}
                 </CardContent>
             </Card>
 
             <Card>
                 <CardHeader>
                     <CardTitle>Acciones Rápidas</CardTitle>
-                    <CardDescription>Accesos directos a funciones clave.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Button variant="outline" className="h-auto justify-start p-4 text-left" onClick={() => router.push('/dashboard/transactions')}>
-                        <Landmark className="mr-4 h-8 w-8 text-primary" />
-                        <div>
-                            <p className="font-semibold">Alivio / Transacción</p>
-                            <p className="text-xs text-muted-foreground">Registra retiros o transferencias entre tus cuentas.</p>
+                     <button onClick={() => router.push('/dashboard/transactions')} className="flex flex-col items-center justify-center p-6 bg-card-foreground/5 rounded-lg hover:bg-card-foreground/10 transition-colors">
+                        <div className="flex items-center justify-center h-12 w-12 rounded-full bg-blue-500/20 text-blue-400 mb-2">
+                            <Landmark className="h-6 w-6" />
                         </div>
-                    </Button>
-                    <Button variant="outline" className="h-auto justify-start p-4 text-left" onClick={() => router.push('/dashboard/total-general')}>
-                        <FileText className="mr-4 h-8 w-8 text-primary" />
-                        <div>
-                            <p className="font-semibold">Total General</p>
-                            <p className="text-xs text-muted-foreground">Ver resumen financiero completo y detallado.</p>
+                        <p className="font-semibold text-primary">Alivio / Transacción</p>
+                        <p className="text-xs text-muted-foreground mt-1 text-center">Registra retiros o transferencias entre tus cuentas.</p>
+                    </button>
+                     <button onClick={() => router.push('/dashboard/total-general')} className="flex flex-col items-center justify-center p-6 bg-card-foreground/5 rounded-lg hover:bg-card-foreground/10 transition-colors">
+                        <div className="flex items-center justify-center h-12 w-12 rounded-full bg-purple-500/20 text-purple-400 mb-2">
+                            <FileText className="h-6 w-6" />
                         </div>
-                    </Button>
+                        <p className="font-semibold text-primary">Total General</p>
+                        <p className="text-xs text-muted-foreground mt-1 text-center">Ver resumen financiero completo y detallado.</p>
+                    </button>
                 </CardContent>
             </Card>
 
-             <Card>
+            <Card>
                 <CardHeader>
-                    <CardTitle>Estadísticas Rápidas</CardTitle>
-                    <CardDescription>Comparativa visual de ingresos y gastos del mes.</CardDescription>
+                    <CardTitle>Estadísticas Rápidas (Mes Actual)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {loading ? (
-                        <Skeleton className="h-[250px] w-full" />
-                    ) : (
-                         <ChartContainer config={chartConfig} className="min-h-[250px] w-full">
-                            <BarChart data={chartData} accessibilityLayer>
-                                <XAxis
-                                    dataKey="name"
-                                    tickLine={false}
-                                    axisLine={false}
-                                    tickMargin={8}
-                                    tickFormatter={(value) => value.slice(0, 3)}
-                                />
-                                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`}/>
-                                <Tooltip cursor={{ fill: 'hsl(var(--card))' }} content={<ChartTooltipContent />} />
-                                <Bar dataKey="income" fill="var(--color-income)" radius={4} />
-                                <Bar dataKey="expense" fill="var(--color-expense)" radius={4} />
-                            </BarChart>
-                        </ChartContainer>
-                    )}
+                  {loading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <Skeleton className="h-28 w-full" />
+                      <Skeleton className="h-28 w-full" />
+                      <Skeleton className="h-28 w-full" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                       <div className="flex flex-col items-center justify-center p-4 bg-card-foreground/5 rounded-lg">
+                          <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-500/10 text-green-400 mb-2">
+                              <ArrowUp size={20} />
+                          </div>
+                          <p className="text-sm text-muted-foreground">Ingresos</p>
+                          <p className="text-xl font-bold text-foreground">{formatCurrency(monthlyData.income)}</p>
+                      </div>
+                      <div className="flex flex-col items-center justify-center p-4 bg-card-foreground/5 rounded-lg">
+                           <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-500/10 text-red-400 mb-2">
+                              <ArrowDown size={20} />
+                          </div>
+                          <p className="text-sm text-muted-foreground">Gastos</p>
+                          <p className="text-xl font-bold text-foreground">{formatCurrency(monthlyData.expense)}</p>
+                      </div>
+                       <div className="flex flex-col items-center justify-center p-4 bg-card-foreground/5 rounded-lg">
+                          <div className="flex items-center justify-center h-10 w-10 rounded-full bg-yellow-500/10 text-yellow-400 mb-2">
+                              <Wallet size={20} />
+                          </div>
+                          <p className="text-sm text-muted-foreground">Efectivo (Caja)</p>
+                          <p className="text-xl font-bold text-foreground">{formatCurrency(currentCash)}</p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
             </Card>
             
@@ -286,5 +289,3 @@ export default function DashboardPage() {
         </div>
     );
 }
-
-  
