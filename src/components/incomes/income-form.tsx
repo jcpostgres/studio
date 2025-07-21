@@ -119,7 +119,6 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   useEffect(() => {
     const existingServiceNames = fields.map(f => f.name);
     
-    // Add new fields for newly selected services
     selectedServices.forEach(serviceName => {
       if (!existingServiceNames.includes(serviceName)) {
         const originalDetail = incomeToEdit?.servicesDetails.find(d => d.name === serviceName);
@@ -127,7 +126,6 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
       }
     });
 
-    // Remove fields for deselected services
     fields.forEach((field, index) => {
       if (!selectedServices.includes(field.name)) {
         remove(index);

@@ -22,7 +22,7 @@ const incomeFormSchema = z.object({
   paymentAccount: z.string().min(1),
   responsible: z.string().min(1),
   observations: z.string().optional(),
-  dueDate: z.string().optional().transform(val => val ? val : null), // transform empty string to null
+  dueDate: z.string().optional(),
   status: z.enum(["active", "cancelled"]),
 });
 
@@ -53,28 +53,23 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
 
     const finalIncomeDataObject: Omit<Income, 'id'> = {
       ...validatedData,
+      brandName: validatedData.brandName || "",
+      observations: validatedData.observations || "",
       totalContractedAmount,
       commissionRate: accountCommission,
       commissionAmount,
       amountWithCommission,
       remainingBalance,
       timestamp: new Date().toISOString(),
-      dueDate: validatedData.dueDate, // Already transformed to string or null
+      dueDate: validatedData.dueDate || null,
     };
-    
-    // Remove empty optional fields so Firestore doesn't store them as undefined
-    if (!finalIncomeDataObject.brandName) delete (finalIncomeDataObject as any).brandName;
-    if (!finalIncomeDataObject.observations) delete (finalIncomeDataObject as any).observations;
-
 
     const batch = writeBatch(db);
 
     let docRef;
     if (incomeId && previousIncomeData) {
-        // ---- UPDATE LOGIC ----
         docRef = doc(db, `users/${userId}/incomes`, incomeId);
         
-        // 1. Revert old balance
         const prevAccountRef = doc(db, `users/${userId}/accounts`, previousIncomeData.paymentAccount);
         const prevAccountSnap = await getDoc(prevAccountRef);
         if (prevAccountSnap.exists()) {
@@ -85,32 +80,26 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
             });
         }
 
-        // 2. Apply new balance
         const currentBalanceNewAccount = accountSnap.data()?.balance || 0;
         batch.update(accountRef, {
             balance: currentBalanceNewAccount + amountWithCommission
         });
 
-        // 3. Update income
         batch.set(docRef, finalIncomeDataObject);
 
     } else {
-        // ---- CREATE LOGIC ----
         docRef = doc(collection(db, `users/${userId}/incomes`));
         
-        // 1. Apply balance
         const currentBalance = accountSnap.data()?.balance || 0;
         batch.update(accountRef, {
             balance: currentBalance + amountWithCommission
         });
 
-        // 2. Create income
         batch.set(docRef, finalIncomeDataObject);
     }
     
     const newIncomeId = docRef.id;
 
-    // ---- REMINDER LOGIC ----
     const hasPlanServices = finalIncomeDataObject.services.some(service => servicesRequiringDueDate.includes(service));
     
     if (hasPlanServices && finalIncomeDataObject.dueDate) {
@@ -129,7 +118,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
             debtAmount: finalIncomeDataObject.remainingBalance,
             dueDate: finalIncomeDataObject.dueDate,
             status: 'pending',
-            contact: '', // To be filled later
+            contact: '', 
             message: reminderMessage,
             timestamp: new Date().toISOString(),
             resolvedAt: null,

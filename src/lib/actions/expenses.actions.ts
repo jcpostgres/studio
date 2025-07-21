@@ -5,6 +5,7 @@ import { doc, writeBatch, collection, getDoc } from "firebase/firestore";
 import { z } from "zod";
 import { suggestExpenseCategories } from "@/ai/flows/suggest-expense-categories";
 import { db } from "@/lib/firebase";
+import { Expense } from "@/lib/types";
 
 export async function suggestCategories(description: string) {
   if (!description) {
@@ -41,15 +42,17 @@ export async function saveExpense({ userId, expenseData }: SaveExpenseParams) {
     
     const batch = writeBatch(db);
 
-    // 1. Create the new expense document
     const expenseRef = doc(collection(db, `users/${userId}/expenses`));
-    const finalExpenseData = {
+    
+    const finalExpenseData: Omit<Expense, 'id'> = {
       ...validatedData,
+      responsible: validatedData.responsible || "",
+      observations: validatedData.observations || "",
       timestamp: new Date().toISOString(),
     };
+
     batch.set(expenseRef, finalExpenseData);
 
-    // 2. Update the account balance
     const accountRef = doc(db, `users/${userId}/accounts`, validatedData.paymentAccount);
     const accountSnap = await getDoc(accountRef);
     if (!accountSnap.exists()) {
