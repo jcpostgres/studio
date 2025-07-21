@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Landmark, FileText, ArrowUp, ArrowDown, Wallet } from "lucide-react";
+import { Landmark, FileText, ArrowUp, ArrowDown } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import type { Income, Expense, Account, Transaction as TransactionType, PayrollPayment } from "@/lib/types";
@@ -36,8 +36,8 @@ export default function DashboardPage() {
         let allTransactions: TransactionType[] = [];
 
         const parseDate = (dateString: string) => {
-            const [year, month, day] = dateString.split('-').map(Number);
-            return new Date(year, month - 1, day);
+             // Handles 'YYYY-MM-DD' format by ensuring it's parsed in UTC to avoid timezone issues.
+            return new Date(`${dateString}T00:00:00`);
         };
 
         const updateAllData = () => {
@@ -121,7 +121,7 @@ export default function DashboardPage() {
         const unsubscribeAccounts = onSnapshot(accountsRef, (snapshot) => {
             const cashAccount = snapshot.docs
               .map(doc => doc.data() as Account)
-              .find(acc => acc.name === "Efectivo (Caja)");
+              .find(acc => acc.name.toLowerCase().includes("efectivo"));
             setCurrentCash(cashAccount?.balance || 0);
             setLoading(false);
         });
@@ -146,20 +146,21 @@ export default function DashboardPage() {
     return (
         <div className="space-y-8">
             <div className="space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">Inicio</h1>
                 <p className="text-muted-foreground">Un resumen rápido del estado financiero de tu negocio.</p>
             </div>
             
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-xl font-semibold">Resumen de {monthName}</CardTitle>
+                    <CardTitle className="text-xl font-semibold capitalize">Resumen de {monthName}</CardTitle>
                 </CardHeader>
                 <CardContent>
                    {loading ? (
-                       <div className="space-y-4">
-                            <Skeleton className="h-6 w-3/4" />
-                            <Skeleton className="h-6 w-1/2" />
-                            <Skeleton className="h-8 w-full" />
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <Skeleton className="h-24 w-full" />
+                            <Skeleton className="h-24 w-full" />
+                            <Skeleton className="h-24 w-full" />
+                            <Skeleton className="h-24 w-full" />
                        </div>
                    ) : (
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-base">
@@ -176,7 +177,7 @@ export default function DashboardPage() {
                             <p className="text-2xl font-bold text-cyan-400">{formatCurrency(monthlyData.utility)}</p>
                         </div>
                          <div className="p-4 bg-card-foreground/5 rounded-lg">
-                            <p className="text-sm text-muted-foreground mb-1">Caja Actual</p>
+                            <p className="text-sm text-muted-foreground mb-1">Efectivo (Caja)</p>
                             <p className="text-2xl font-bold text-yellow-400">{formatCurrency(currentCash)}</p>
                         </div>
                      </div>
@@ -184,66 +185,65 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Últimas Transacciones (Hoy)</CardTitle>
-                            <CardDescription>Movimientos registrados en el día de hoy.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {loading ? (
-                                <Skeleton className="h-40 w-full" />
-                            ) : todayTransactions.length === 0 ? (
-                                <p className="text-muted-foreground text-center py-10">No hay transacciones registradas para hoy.</p>
-                            ) : (
-                                <div className="space-y-4">
-                                    {todayTransactions.map(transaction => (
-                                        <div key={transaction.id} className="flex justify-between items-center">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`flex items-center justify-center h-10 w-10 rounded-full ${transaction.isPositive ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                                                    {transaction.isPositive ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold text-foreground">{transaction.type}</p>
-                                                    <p className="text-sm text-muted-foreground truncate max-w-xs">{transaction.description}</p>
-                                                </div>
-                                            </div>
-                                            <span className={`font-bold ${transaction.isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                                                {transaction.isPositive ? '+' : '-'}{formatCurrency(transaction.amount)}
-                                            </span>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Acciones Rápidas</CardTitle>
+                    <CardDescription>Accesos directos a funciones clave.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Button variant="outline" className="h-auto justify-start p-4 text-left" onClick={() => router.push('/dashboard/transactions')}>
+                        <Landmark className="mr-4 h-8 w-8 text-primary" />
+                        <div>
+                            <p className="font-semibold">Alivio / Transacción</p>
+                            <p className="text-xs text-muted-foreground">Registra retiros o transferencias entre tus cuentas.</p>
+                        </div>
+                    </Button>
+                    <Button variant="outline" className="h-auto justify-start p-4 text-left" onClick={() => router.push('/dashboard/total-general')}>
+                        <FileText className="mr-4 h-8 w-8 text-primary" />
+                        <div>
+                            <p className="font-semibold">Total General</p>
+                            <p className="text-xs text-muted-foreground">Ver resumen financiero completo y detallado.</p>
+                        </div>
+                    </Button>
+                </CardContent>
+            </Card>
+            
+             <Card>
+                <CardHeader>
+                    <CardTitle>Últimas Transacciones (Hoy)</CardTitle>
+                    <CardDescription>Movimientos registrados en el día de hoy.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <div className="space-y-4">
+                            <Skeleton className="h-14 w-full" />
+                            <Skeleton className="h-14 w-full" />
+                            <Skeleton className="h-14 w-full" />
+                        </div>
+                    ) : todayTransactions.length === 0 ? (
+                        <p className="text-muted-foreground text-center py-10">No hay transacciones registradas para hoy.</p>
+                    ) : (
+                        <div className="space-y-4">
+                            {todayTransactions.map(transaction => (
+                                <div key={transaction.id} className="flex justify-between items-center">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`flex items-center justify-center h-10 w-10 rounded-full ${transaction.isPositive ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                            {transaction.isPositive ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
                                         </div>
-                                    ))}
+                                        <div>
+                                            <p className="font-semibold text-foreground">{transaction.type}</p>
+                                            <p className="text-sm text-muted-foreground truncate max-w-xs">{transaction.description}</p>
+                                        </div>
+                                    </div>
+                                    <span className={`font-bold ${transaction.isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                                        {transaction.isPositive ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                    </span>
                                 </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-                <div>
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Acciones Rápidas</CardTitle>
-                             <CardDescription>Accesos directos a funciones clave.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="grid grid-cols-1 gap-4">
-                            <Button variant="outline" className="h-auto py-3 flex flex-col items-start gap-1" onClick={() => router.push('/dashboard/transactions')}>
-                                <div className="flex items-center gap-2">
-                                     <Landmark size={18} />
-                                     <span className="font-semibold">Alivio / Transacción</span>
-                                </div>
-                                <p className="text-xs text-muted-foreground text-left">Registra retiros o transferencias entre tus cuentas.</p>
-                            </Button>
-                            <Button variant="outline" className="h-auto py-3 flex flex-col items-start gap-1" onClick={() => router.push('/dashboard/total-general')}>
-                                 <div className="flex items-center gap-2">
-                                     <FileText size={18} />
-                                     <span className="font-semibold">Total General</span>
-                                </div>
-                                <p className="text-xs text-muted-foreground text-left">Ver resumen financiero completo y detallado.</p>
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }
