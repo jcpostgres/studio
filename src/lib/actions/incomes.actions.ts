@@ -22,7 +22,7 @@ const incomeFormSchema = z.object({
   paymentAccount: z.string().min(1),
   responsible: z.string().min(1),
   observations: z.string().optional(),
-  dueDate: z.string().optional().or(z.literal('')),
+  dueDate: z.string().optional().transform(val => val ? val : null), // transform empty string to null
   status: z.enum(["active", "cancelled"]),
 });
 
@@ -59,13 +59,12 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
       amountWithCommission,
       remainingBalance,
       timestamp: new Date().toISOString(),
-      dueDate: validatedData.dueDate || null,
+      dueDate: validatedData.dueDate, // Already transformed to string or null
     };
     
-    // Remove empty optional fields so Firestore doesn't store them as null
+    // Remove empty optional fields so Firestore doesn't store them as undefined
     if (!finalIncomeDataObject.brandName) delete (finalIncomeDataObject as any).brandName;
     if (!finalIncomeDataObject.observations) delete (finalIncomeDataObject as any).observations;
-    if (!finalIncomeDataObject.dueDate) finalIncomeDataObject.dueDate = null;
 
 
     const batch = writeBatch(db);

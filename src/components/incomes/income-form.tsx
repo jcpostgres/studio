@@ -64,7 +64,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     defaultValues: incomeToEdit ? {
       ...incomeToEdit,
       services: incomeToEdit.servicesDetails.map(s => s.name),
-      dueDate: incomeToEdit.dueDate || "",
+      dueDate: incomeToEdit.dueDate ? new Date(incomeToEdit.dueDate).toISOString().split('T')[0] : "",
     } : {
       date: new Date().toISOString().split('T')[0],
       client: "",
@@ -81,15 +81,15 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     },
   });
   
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "servicesDetails",
   });
 
-  const selectedServices = form.watch("services");
-  const watchedServicesDetails = form.watch("servicesDetails");
-  const watchedAmountPaid = form.watch("amountPaid");
-  const watchedPaymentAccount = form.watch("paymentAccount");
+  const selectedServices = form.watch("services", []);
+  const watchedServicesDetails = form.watch("servicesDetails", []);
+  const watchedAmountPaid = form.watch("amountPaid", 0);
+  const watchedPaymentAccount = form.watch("paymentAccount", "");
 
   const totalContractedAmount = useMemo(() => {
     return watchedServicesDetails.reduce((sum, service) => {
@@ -117,14 +117,24 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   }, [userId]);
 
   useEffect(() => {
-    const currentServiceDetails = form.getValues('servicesDetails');
-    const newServiceDetails = selectedServices.map(serviceName => {
-        const existingDetail = currentServiceDetails.find(d => d.name === serviceName);
+    const existingServiceNames = fields.map(f => f.name);
+    
+    // Add new fields for newly selected services
+    selectedServices.forEach(serviceName => {
+      if (!existingServiceNames.includes(serviceName)) {
         const originalDetail = incomeToEdit?.servicesDetails.find(d => d.name === serviceName);
-        return existingDetail || originalDetail || { name: serviceName, amount: 0 };
+        append({ name: serviceName, amount: originalDetail?.amount || 0 });
+      }
     });
-    replace(newServiceDetails);
-  }, [selectedServices, incomeToEdit, form, replace]);
+
+    // Remove fields for deselected services
+    fields.forEach((field, index) => {
+      if (!selectedServices.includes(field.name)) {
+        remove(index);
+      }
+    });
+
+  }, [selectedServices, fields, append, remove, incomeToEdit]);
 
 
   const showDueDateField = useMemo(() => {
@@ -225,11 +235,11 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
                 key={field.id}
                 control={form.control}
                 name={`servicesDetails.${index}.amount`}
-                render={({ field }) => (
+                render={({ field: formField }) => (
                 <FormItem>
                     <FormLabel>Costo {watchedServicesDetails[index]?.name}</FormLabel>
                     <FormControl>
-                    <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                    <Input type="number" step="0.01" placeholder="0.00" {...formField} />
                     </FormControl>
                     <FormMessage />
                 </FormItem>
