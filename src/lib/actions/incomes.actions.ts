@@ -22,7 +22,7 @@ const incomeFormSchema = z.object({
   paymentAccount: z.string().min(1),
   responsible: z.string().min(1),
   observations: z.string().optional(),
-  dueDate: z.string().optional(),
+  dueDate: z.string().optional().or(z.literal('')),
   status: z.enum(["active", "cancelled"]),
 });
 
@@ -51,7 +51,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
     const amountWithCommission = validatedData.amountPaid - commissionAmount;
     const remainingBalance = totalContractedAmount - validatedData.amountPaid;
 
-    const finalIncomeData: Omit<Income, 'id'> = {
+    const finalIncomeDataObject: Omit<Income, 'id'> = {
       ...validatedData,
       totalContractedAmount,
       commissionRate: accountCommission,
@@ -62,6 +62,12 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
       dueDate: validatedData.dueDate || null,
     };
     
+    // Remove empty optional fields so Firestore doesn't store them as null
+    if (!finalIncomeDataObject.brandName) delete (finalIncomeDataObject as any).brandName;
+    if (!finalIncomeDataObject.observations) delete (finalIncomeDataObject as any).observations;
+    if (!finalIncomeDataObject.dueDate) finalIncomeDataObject.dueDate = null;
+
+
     const batch = writeBatch(db);
 
     let docRef;
@@ -84,7 +90,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
         });
 
         // 3. Update income
-        batch.set(docRef, finalIncomeData);
+        batch.set(docRef, finalIncomeDataObject);
 
     } else {
         // ---- CREATE LOGIC ----
@@ -96,29 +102,29 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
         });
 
         // 2. Create income
-        batch.set(docRef, finalIncomeData);
+        batch.set(docRef, finalIncomeDataObject);
     }
     
     const newIncomeId = docRef.id;
 
     // ---- REMINDER LOGIC ----
-    const hasPlanServices = finalIncomeData.services.some(service => servicesRequiringDueDate.includes(service));
+    const hasPlanServices = finalIncomeDataObject.services.some(service => servicesRequiringDueDate.includes(service));
     
-    if (hasPlanServices && finalIncomeData.dueDate) {
-        const renewalAmount = finalIncomeData.servicesDetails
+    if (hasPlanServices && finalIncomeDataObject.dueDate) {
+        const renewalAmount = finalIncomeDataObject.servicesDetails
             .filter(s => servicesRequiringDueDate.includes(s.name))
             .reduce((sum, s) => sum + s.amount, 0);
 
-        const reminderMessage = `Recordatorio de Renovación: El plan de ${finalIncomeData.client} vence el ${finalIncomeData.dueDate}. Monto: $${renewalAmount.toFixed(2)}.`;
+        const reminderMessage = `Recordatorio de Renovación: El plan de ${finalIncomeDataObject.client} vence el ${finalIncomeDataObject.dueDate}. Monto: $${renewalAmount.toFixed(2)}.`;
         
         const reminderData: Omit<Reminder, 'id'> = {
             incomeId: newIncomeId,
-            clientId: finalIncomeData.client,
-            brandName: finalIncomeData.brandName || "",
-            service: finalIncomeData.services.filter(s => servicesRequiringDueDate.includes(s)).join(', '),
+            clientId: finalIncomeDataObject.client,
+            brandName: finalIncomeDataObject.brandName || "",
+            service: finalIncomeDataObject.services.filter(s => servicesRequiringDueDate.includes(s)).join(', '),
             renewalAmount: renewalAmount,
-            debtAmount: finalIncomeData.remainingBalance,
-            dueDate: finalIncomeData.dueDate,
+            debtAmount: finalIncomeDataObject.remainingBalance,
+            dueDate: finalIncomeDataObject.dueDate,
             status: 'pending',
             contact: '', // To be filled later
             message: reminderMessage,

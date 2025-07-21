@@ -64,6 +64,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     defaultValues: incomeToEdit ? {
       ...incomeToEdit,
       services: incomeToEdit.servicesDetails.map(s => s.name),
+      dueDate: incomeToEdit.dueDate || "",
     } : {
       date: new Date().toISOString().split('T')[0],
       client: "",
@@ -120,7 +121,8 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     
     selectedServices.forEach(serviceName => {
       if (!currentServiceNames.includes(serviceName)) {
-        append({ name: serviceName, amount: 0 });
+        const existingService = incomeToEdit?.servicesDetails.find(s => s.name === serviceName);
+        append({ name: serviceName, amount: existingService?.amount || 0 });
       }
     });
 
@@ -130,7 +132,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
       }
     });
 
-  }, [selectedServices, fields, append, remove]);
+  }, [selectedServices, fields, append, remove, incomeToEdit]);
 
   const showDueDateField = useMemo(() => {
     return selectedServices.some(service => servicesRequiringDueDate.includes(service));
@@ -234,7 +236,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
                 <FormItem>
                     <FormLabel>Costo {watchedServicesDetails[index]?.name}</FormLabel>
                     <FormControl>
-                    <Input type="number" placeholder="0.00" {...field} />
+                    <Input type="number" step="0.01" placeholder="0.00" {...field} />
                     </FormControl>
                     <FormMessage />
                 </FormItem>
@@ -257,7 +259,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
             <FormField control={form.control} name="amountPaid" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Monto Pagado</FormLabel>
-                    <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
+                    <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
                     <FormMessage />
                 </FormItem>
             )}/>
