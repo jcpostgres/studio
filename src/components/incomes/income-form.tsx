@@ -87,9 +87,9 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   });
 
   const selectedServices = form.watch("services", []);
-  const watchedServicesDetails = form.watch("servicesDetails", []);
-  const watchedAmountPaid = form.watch("amountPaid", 0);
-  const watchedPaymentAccount = form.watch("paymentAccount", "");
+  const watchedServicesDetails = form.watch("servicesDetails");
+  const watchedAmountPaid = form.watch("amountPaid");
+  const watchedPaymentAccount = form.watch("paymentAccount");
 
   const totalContractedAmount = useMemo(() => {
     return watchedServicesDetails.reduce((sum, service) => {
@@ -164,8 +164,8 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
         router.push("/dashboard/incomes");
     } else {
         toast({ variant: "destructive", title: "Error", description: result.message });
+        setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   }
 
   return (
@@ -245,10 +245,10 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
             />
         ))}
 
-        <div className="bg-gray-800 p-4 rounded-lg space-y-2">
+        <div className="bg-card-foreground/5 p-4 rounded-lg space-y-2">
             <div className="flex justify-between items-center">
                 <span className="font-medium">Monto Total Contratado:</span>
-                <span className="font-bold text-teal-400">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(totalContractedAmount)}</span>
+                <span className="font-bold text-cyan-400">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(totalContractedAmount)}</span>
             </div>
              <div className="flex justify-between items-center">
                 <span className="font-medium">Saldo Pendiente:</span>
@@ -278,7 +278,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
             )}/>
         </div>
         
-        <div className="bg-gray-800 p-4 rounded-lg space-y-2">
+        <div className="bg-card-foreground/5 p-4 rounded-lg space-y-2">
             <div className="flex justify-between items-center">
                 <span className="font-medium">Comisión ({(commissionRate * 100).toFixed(0)}%):</span>
                 <span className="font-bold">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(commissionAmount)}</span>
@@ -314,9 +314,26 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
                 <FormMessage />
             </FormItem>
         )}/>
+        
+        {incomeToEdit && (
+             <FormField control={form.control} name="status" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Estado del Ingreso</FormLabel>
+                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Selecciona un estado" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                           <SelectItem value="active">Activo</SelectItem>
+                           <SelectItem value="cancelled">Cancelado</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+            )}/>
+        )}
+
 
         <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (incomeToEdit ? 'Actualizar Ingreso' : 'Registrar Ingreso')}
+          {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : (incomeToEdit ? 'Actualizar Ingreso' : 'Registrar Ingreso')}
         </Button>
       </form>
     </Form>

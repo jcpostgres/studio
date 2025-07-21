@@ -1,7 +1,7 @@
 
 "use server";
 
-import { doc, setDoc, addDoc, collection, writeBatch, getDoc, updateDoc, deleteDoc, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { doc, writeBatch, collection, getDoc, } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { z } from "zod";
 import type { Income, Reminder } from "@/lib/types";
@@ -44,7 +44,8 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
     if (!accountSnap.exists()) {
         return { success: false, message: "La cuenta de pago seleccionada no existe." };
     }
-    const accountCommission = accountSnap.data()?.commission || 0;
+    const accountData = accountSnap.data();
+    const accountCommission = accountData.commission || 0;
 
     const totalContractedAmount = validatedData.servicesDetails.reduce((sum, service) => sum + service.amount, 0);
     const commissionAmount = validatedData.amountPaid * accountCommission;
@@ -52,9 +53,16 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
     const remainingBalance = totalContractedAmount - validatedData.amountPaid;
 
     const finalIncomeDataObject: Omit<Income, 'id'> = {
-      ...validatedData,
+      date: validatedData.date,
+      client: validatedData.client,
       brandName: validatedData.brandName || "",
+      country: validatedData.country,
+      services: validatedData.services,
+      servicesDetails: validatedData.servicesDetails,
+      paymentAccount: validatedData.paymentAccount,
+      responsible: validatedData.responsible,
       observations: validatedData.observations || "",
+      amountPaid: validatedData.amountPaid,
       totalContractedAmount,
       commissionRate: accountCommission,
       commissionAmount,
@@ -62,35 +70,49 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
       remainingBalance,
       timestamp: new Date().toISOString(),
       dueDate: validatedData.dueDate || null,
+      status: validatedData.status,
     };
 
     const batch = writeBatch(db);
 
     let docRef;
+    // --- EDITING EXISTING INCOME ---
     if (incomeId && previousIncomeData) {
         docRef = doc(db, `users/${userId}/incomes`, incomeId);
         
+        // --- REVERT PREVIOUS TRANSACTION ---
+        // 1. Find the previous account
         const prevAccountRef = doc(db, `users/${userId}/accounts`, previousIncomeData.paymentAccount);
         const prevAccountSnap = await getDoc(prevAccountRef);
-        if (prevAccountSnap.exists()) {
-            const currentBalance = prevAccountSnap.data()?.balance || 0;
-            const balanceToRevert = previousIncomeData.amountWithCommission || 0;
-            batch.update(prevAccountRef, {
-                balance: currentBalance - balanceToRevert
+
+        // 2. If the previous account is the SAME as the new one, we use the current snapshot
+        if (previousIncomeData.paymentAccount === validatedData.paymentAccount) {
+             const currentBalance = accountData.balance || 0;
+             const balanceWithoutOldTx = currentBalance - previousIncomeData.amountWithCommission;
+             const finalBalance = balanceWithoutOldTx + amountWithCommission;
+             batch.update(accountRef, { balance: finalBalance });
+        } else {
+        // 3. If the accounts are DIFFERENT, we update both
+            // Revert old account
+            if (prevAccountSnap.exists()) {
+                const prevAccountData = prevAccountSnap.data();
+                batch.update(prevAccountRef, {
+                    balance: prevAccountData.balance - previousIncomeData.amountWithCommission
+                });
+            }
+            // Apply to new account
+            batch.update(accountRef, {
+                balance: accountData.balance + amountWithCommission
             });
         }
-
-        const currentBalanceNewAccount = accountSnap.data()?.balance || 0;
-        batch.update(accountRef, {
-            balance: currentBalanceNewAccount + amountWithCommission
-        });
-
+        
         batch.set(docRef, finalIncomeDataObject);
 
     } else {
+    // --- CREATING NEW INCOME ---
         docRef = doc(collection(db, `users/${userId}/incomes`));
         
-        const currentBalance = accountSnap.data()?.balance || 0;
+        const currentBalance = accountData.balance || 0;
         batch.update(accountRef, {
             balance: currentBalance + amountWithCommission
         });
