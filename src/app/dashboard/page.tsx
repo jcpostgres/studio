@@ -11,6 +11,8 @@ import { collection, onSnapshot } from "firebase/firestore";
 import type { Income, Expense, Account, Transaction as TransactionType, PayrollPayment } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 
 export default function DashboardPage() {
     const { userId } = useAuth();
@@ -143,6 +145,15 @@ export default function DashboardPage() {
         }).format(amount);
     };
 
+    const chartData = [
+      { name: 'Total Mensual', income: monthlyData.income, expense: monthlyData.expense },
+    ];
+
+    const chartConfig = {
+      income: { label: 'Ingresos', color: 'hsl(var(--chart-2))' },
+      expense: { label: 'Gastos', color: 'hsl(var(--chart-1))' },
+    }
+
     return (
         <div className="space-y-8">
             <div className="space-y-2">
@@ -207,6 +218,34 @@ export default function DashboardPage() {
                     </Button>
                 </CardContent>
             </Card>
+
+             <Card>
+                <CardHeader>
+                    <CardTitle>Estadísticas Rápidas</CardTitle>
+                    <CardDescription>Comparativa visual de ingresos y gastos del mes.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <Skeleton className="h-[250px] w-full" />
+                    ) : (
+                         <ChartContainer config={chartConfig} className="min-h-[250px] w-full">
+                            <BarChart data={chartData} accessibilityLayer>
+                                <XAxis
+                                    dataKey="name"
+                                    tickLine={false}
+                                    axisLine={false}
+                                    tickMargin={8}
+                                    tickFormatter={(value) => value.slice(0, 3)}
+                                />
+                                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`}/>
+                                <Tooltip cursor={{ fill: 'hsl(var(--card))' }} content={<ChartTooltipContent />} />
+                                <Bar dataKey="income" fill="var(--color-income)" radius={4} />
+                                <Bar dataKey="expense" fill="var(--color-expense)" radius={4} />
+                            </BarChart>
+                        </ChartContainer>
+                    )}
+                </CardContent>
+            </Card>
             
              <Card>
                 <CardHeader>
@@ -247,3 +286,5 @@ export default function DashboardPage() {
         </div>
     );
 }
+
+  
