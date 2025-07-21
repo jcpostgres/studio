@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -86,22 +86,23 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   });
 
   const selectedServices = form.watch("services");
-  const paymentAccount = form.watch("paymentAccount");
-  const amountPaid = form.watch("amountPaid");
-  const servicesDetails = form.watch("servicesDetails");
+  const watchedServicesDetails = form.watch("servicesDetails");
+  const watchedAmountPaid = form.watch("amountPaid");
+  const watchedPaymentAccount = form.watch("paymentAccount");
 
   const totalContractedAmount = useMemo(() => {
-    return servicesDetails.reduce((sum, service) => sum + (service.amount || 0), 0);
-  }, [servicesDetails]);
-
-  const commissionRate = useMemo(() => {
-    const account = accounts.find(acc => acc.id === paymentAccount);
-    return account?.commission || 0;
-  }, [paymentAccount, accounts]);
+    return watchedServicesDetails.reduce((sum, service) => sum + (service.amount || 0), 0);
+  }, [watchedServicesDetails]);
   
-  const commissionAmount = useMemo(() => amountPaid * commissionRate, [amountPaid, commissionRate]);
-  const amountWithCommission = useMemo(() => amountPaid - commissionAmount, [amountPaid, commissionAmount]);
-  const remainingBalance = useMemo(() => totalContractedAmount - amountPaid, [totalContractedAmount, amountPaid]);
+  const commissionRate = useMemo(() => {
+    const account = accounts.find(acc => acc.id === watchedPaymentAccount);
+    return account?.commission || 0;
+  }, [watchedPaymentAccount, accounts]);
+
+  const commissionAmount = useMemo(() => watchedAmountPaid * commissionRate, [watchedAmountPaid, commissionRate]);
+  const amountWithCommission = useMemo(() => watchedAmountPaid - commissionAmount, [watchedAmountPaid, commissionAmount]);
+  const remainingBalance = useMemo(() => totalContractedAmount - watchedAmountPaid, [totalContractedAmount, watchedAmountPaid]);
+
 
   useEffect(() => {
     if (!userId) return;
@@ -207,7 +208,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
                                         checked={field.value?.includes(service)}
                                         onCheckedChange={(checked) => {
                                             return checked
-                                                ? field.onChange([...field.value, service])
+                                                ? field.onChange([...(field.value || []), service])
                                                 : field.onChange(field.value?.filter((value) => value !== service));
                                         }}
                                     />
@@ -228,13 +229,12 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
                 name={`servicesDetails.${index}.amount`} 
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Costo {servicesDetails[index].name}</FormLabel>
+                        <FormLabel>Costo {watchedServicesDetails[index]?.name}</FormLabel>
                         <FormControl>
                             <Input 
-                                type="number" 
-                                placeholder="0.00" 
-                                {...field} 
-                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                                type="number"
+                                placeholder="0.00"
+                                {...field}
                             />
                         </FormControl>
                         <FormMessage />
