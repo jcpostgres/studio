@@ -226,23 +226,20 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
         )}/>
 
         {fields.map((field, index) => (
-            <FormField 
-                key={field.id} 
-                control={form.control} 
-                name={`servicesDetails.${index}.amount`} 
+            <FormField
+                key={field.id}
+                control={form.control}
+                name={`servicesDetails.${index}.amount`}
                 render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Costo {watchedServicesDetails[index]?.name}</FormLabel>
-                        <FormControl>
-                            <Input 
-                                type="number"
-                                placeholder="0.00"
-                                {...field}
-                            />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-            )}/>
+                <FormItem>
+                    <FormLabel>Costo {watchedServicesDetails[index]?.name}</FormLabel>
+                    <FormControl>
+                    <Input type="number" placeholder="0.00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
         ))}
 
         <div className="bg-gray-800 p-4 rounded-lg space-y-2">

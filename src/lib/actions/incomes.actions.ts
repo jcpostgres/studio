@@ -8,7 +8,7 @@ import type { Income, Reminder } from "@/lib/types";
 
 const serviceDetailSchema = z.object({
   name: z.string(),
-  amount: z.coerce.number(),
+  amount: z.coerce.number().min(0, "El monto no puede ser negativo."),
 });
 
 const incomeFormSchema = z.object({
