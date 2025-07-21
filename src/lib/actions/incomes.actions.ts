@@ -79,14 +79,17 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
         const prevAccountRef = doc(db, `users/${userId}/accounts`, previousIncomeData.paymentAccount);
         const prevAccountSnap = await getDoc(prevAccountRef);
         if (prevAccountSnap.exists()) {
+            const currentBalance = prevAccountSnap.data()?.balance || 0;
+            const balanceToRevert = previousIncomeData.amountWithCommission || 0;
             batch.update(prevAccountRef, {
-                balance: (prevAccountSnap.data()?.balance || 0) - previousIncomeData.amountWithCommission
+                balance: currentBalance - balanceToRevert
             });
         }
 
         // 2. Apply new balance
+        const currentBalanceNewAccount = accountSnap.data()?.balance || 0;
         batch.update(accountRef, {
-            balance: (accountSnap.data()?.balance || 0) + amountWithCommission
+            balance: currentBalanceNewAccount + amountWithCommission
         });
 
         // 3. Update income
@@ -97,8 +100,9 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
         docRef = doc(collection(db, `users/${userId}/incomes`));
         
         // 1. Apply balance
+        const currentBalance = accountSnap.data()?.balance || 0;
         batch.update(accountRef, {
-            balance: (accountSnap.data()?.balance || 0) + amountWithCommission
+            balance: currentBalance + amountWithCommission
         });
 
         // 2. Create income

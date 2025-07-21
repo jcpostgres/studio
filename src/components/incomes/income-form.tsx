@@ -81,7 +81,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     },
   });
   
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "servicesDetails",
   });
@@ -117,22 +117,15 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   }, [userId]);
 
   useEffect(() => {
-    const currentServiceNames = fields.map(f => f.name);
-    
-    selectedServices.forEach(serviceName => {
-      if (!currentServiceNames.includes(serviceName)) {
-        const existingService = incomeToEdit?.servicesDetails.find(s => s.name === serviceName);
-        append({ name: serviceName, amount: existingService?.amount || 0 });
-      }
+    const currentServiceDetails = form.getValues('servicesDetails');
+    const newServiceDetails = selectedServices.map(serviceName => {
+        const existingDetail = currentServiceDetails.find(d => d.name === serviceName);
+        const originalDetail = incomeToEdit?.servicesDetails.find(d => d.name === serviceName);
+        return existingDetail || originalDetail || { name: serviceName, amount: 0 };
     });
+    replace(newServiceDetails);
+  }, [selectedServices, incomeToEdit, form, replace]);
 
-    fields.forEach((field, index) => {
-      if (!selectedServices.includes(field.name)) {
-        remove(index);
-      }
-    });
-
-  }, [selectedServices, fields, append, remove, incomeToEdit]);
 
   const showDueDateField = useMemo(() => {
     return selectedServices.some(service => servicesRequiringDueDate.includes(service));
@@ -292,7 +285,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
             <FormField control={form.control} name="dueDate" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Fecha de Vencimiento del Plan</FormLabel>
-                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormControl><Input type="date" {...field} value={field.value || ''} /></FormControl>
                     <FormMessage />
                 </FormItem>
             )}/>
