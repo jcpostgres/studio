@@ -8,7 +8,7 @@ import type { Income, Reminder } from "@/lib/types";
 
 const serviceDetailSchema = z.object({
   name: z.string(),
-  amount: z.number(),
+  amount: z.coerce.number(),
 });
 
 const incomeFormSchema = z.object({
