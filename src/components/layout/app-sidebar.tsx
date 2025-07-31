@@ -1,3 +1,4 @@
+
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
@@ -25,6 +26,7 @@ import {
   Bell,
   BarChart2,
   FolderKanban,
+  FileCog,
 } from "lucide-react";
 
 const mainNav = [
@@ -41,6 +43,7 @@ const reportsNav = [
 
 const settingsNav = [
   { href: "/dashboard/accounts", icon: Landmark, label: "Cuentas" },
+  { href: "/dashboard/admin-payments", icon: FileCog, label: "Pagos Administrativos" },
   { href: "/dashboard/payroll", icon: Users, label: "Nómina" },
   { href: "/dashboard/clients-debts", icon: FolderKanban, label: "Clientes y Deudas" },
   { href: "/dashboard/reminders", icon: Bell, label: "Recordatorios" },
@@ -71,7 +74,7 @@ export function AppSidebar() {
       <SidebarMenuItem key={item.href}>
         <SidebarMenuButton
           href={item.href}
-          isActive={pathname === item.href}
+          isActive={pathname.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')}
           onClick={(e) => {
             e.preventDefault();
             router.push(item.href!);

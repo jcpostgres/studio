@@ -100,3 +100,31 @@ export interface Reminder {
     timestamp: string; // ISO String
     resolvedAt: string | null; // ISO String
 }
+
+export interface AdminPayment {
+    id: string;
+    // General Data
+    conceptName: string;
+    category: 'Servicios Básicos' | 'Alquiler' | 'Seguros' | 'Préstamos/Créditos' | 'Suscripciones/Membresías' | 'Impuestos' | 'Otros';
+    // Provider Data
+    providerName: string;
+    contractNumber?: string;
+    referenceNumber?: string;
+    providerId?: string; // RIF/C.I.
+    // Payment Details
+    paymentAmount: number;
+    paymentCurrency: string;
+    paymentFrequency: 'Mensual' | 'Bimestral' | 'Trimestral' | 'Anual' | 'Única vez';
+    paymentDueDate?: string | null;
+    renewalDate?: string | null;
+    paymentMethod?: string;
+    // Bank Details
+    beneficiaryBank?: string;
+    beneficiaryAccountNumber?: string;
+    beneficiaryAccountType?: 'Ahorro' | 'Corriente';
+    // Notes
+    notes?: string;
+    // Timestamps
+    createdAt: string; // ISO String
+    updatedAt: string; // ISO String
+}
