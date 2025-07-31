@@ -8,7 +8,7 @@ import * as z from "zod";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { AdminPayment } from "@/lib/types";
-import { adminPaymentSchema, saveAdminPayment } from "@/lib/actions/admin-payments.actions";
+import { saveAdminPayment } from "@/lib/actions/admin-payments.actions";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Loader2 } from "lucide-react";
+
+const adminPaymentSchema = z.object({
+    conceptName: z.string().min(2, "El nombre del concepto es requerido."),
+    category: z.enum(["Servicios Básicos", "Alquiler", "Seguros", "Préstamos/Créditos", "Suscripciones/Membresías", "Impuestos", "Otros"]),
+    providerName: z.string().min(2, "El nombre del proveedor es requerido."),
+    contractNumber: z.string().optional(),
+    referenceNumber: z.string().optional(),
+    providerId: z.string().optional(),
+    paymentAmount: z.coerce.number().positive("El monto debe ser un número positivo."),
+    paymentCurrency: z.string().default("USD"),
+    paymentFrequency: z.enum(["Mensual", "Bimestral", "Trimestral", "Anual", "Única vez"]),
+    paymentDueDate: z.string().optional(),
+    renewalDate: z.string().optional(),
+    paymentMethod: z.string().optional(),
+    beneficiaryBank: z.string().optional(),
+    beneficiaryAccountNumber: z.string().optional(),
+    beneficiaryAccountType: z.enum(["Ahorro", "Corriente"]).optional(),
+    notes: z.string().optional(),
+});
+
 
 type AdminPaymentFormValues = z.infer<typeof adminPaymentSchema>;
 
@@ -179,3 +199,5 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
         </Form>
     );
 }
+
+    

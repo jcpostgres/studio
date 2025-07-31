@@ -1,12 +1,14 @@
 
 "use server";
 
-import { doc, setDoc, deleteDoc, writeBatch } from "firebase/firestore";
+import { doc, setDoc, deleteDoc, writeBatch, collection, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { z } from "zod";
 import type { AdminPayment } from "@/lib/types";
 
-export const adminPaymentSchema = z.object({
+// This schema is for server-side validation.
+// The client-side schema is in the form component.
+const adminPaymentActionSchema = z.object({
     conceptName: z.string().min(2, "El nombre del concepto es requerido."),
     category: z.enum(["Servicios Básicos", "Alquiler", "Seguros", "Préstamos/Créditos", "Suscripciones/Membresías", "Impuestos", "Otros"]),
     providerName: z.string().min(2, "El nombre del proveedor es requerido."),
@@ -16,8 +18,8 @@ export const adminPaymentSchema = z.object({
     paymentAmount: z.coerce.number().positive("El monto debe ser un número positivo."),
     paymentCurrency: z.string().default("USD"),
     paymentFrequency: z.enum(["Mensual", "Bimestral", "Trimestral", "Anual", "Única vez"]),
-    paymentDueDate: z.string().optional().transform(val => val || null),
-    renewalDate: z.string().optional().transform(val => val || null),
+    paymentDueDate: z.string().optional(),
+    renewalDate: z.string().optional(),
     paymentMethod: z.string().optional(),
     beneficiaryBank: z.string().optional(),
     beneficiaryAccountNumber: z.string().optional(),
@@ -27,23 +29,25 @@ export const adminPaymentSchema = z.object({
 
 interface SaveAdminPaymentParams {
     userId: string;
-    paymentData: z.infer<typeof adminPaymentSchema>;
+    paymentData: z.infer<typeof adminPaymentActionSchema>;
     paymentId?: string;
 }
 
 export async function saveAdminPayment({ userId, paymentData, paymentId }: SaveAdminPaymentParams) {
     try {
-        const validatedData = adminPaymentSchema.parse(paymentData);
+        const validatedData = adminPaymentActionSchema.parse(paymentData);
         
         const docRef = paymentId
             ? doc(db, `users/${userId}/adminPayments`, paymentId)
             : doc(collection(db, `users/${userId}/adminPayments`));
 
+        const existingData = paymentId ? (await getDoc(docRef)).data() : {};
+
         const dataToSave: Omit<AdminPayment, 'id'> = {
             ...validatedData,
             paymentDueDate: validatedData.paymentDueDate || null,
             renewalDate: validatedData.renewalDate || null,
-            createdAt: paymentId ? (await getDoc(docRef)).data()?.createdAt : new Date().toISOString(),
+            createdAt: existingData?.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
 
@@ -74,3 +78,5 @@ export async function deleteAdminPayment({ userId, paymentId }: DeleteAdminPayme
         return { success: false, message: "No se pudo eliminar el registro." };
     }
 }
+
+    
