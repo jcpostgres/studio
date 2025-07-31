@@ -87,7 +87,8 @@ export interface Account {
 
 export interface Reminder {
     id: string;
-    incomeId: string;
+    incomeId: string | null; // For income renewals
+    adminPaymentId?: string | null; // For administrative payments
     clientId: string;
     brandName: string;
     service: string;
@@ -112,9 +113,9 @@ export interface AdminPayment {
     referenceNumber?: string;
     providerId?: string; // RIF/C.I.
     // Payment Details
-    paymentAmount: number;
-    paymentCurrency: string;
-    paymentFrequency: 'Mensual' | 'Bimestral' | 'Trimestral' | 'Anual' | 'Única vez';
+    paymentAmount?: number;
+    paymentCurrency?: string;
+    paymentFrequency?: 'Mensual' | 'Bimestral' | 'Trimestral' | 'Anual' | 'Única vez';
     paymentDueDate?: string | null;
     renewalDate?: string | null;
     paymentMethod?: string;

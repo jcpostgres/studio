@@ -51,8 +51,8 @@ export default function AdminPaymentsPage() {
             if (searchTerm) {
                 fetchedPayments = fetchedPayments.filter(p => 
                     p.conceptName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    p.providerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    p.contractNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+                    (p.providerName && p.providerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (p.contractNumber && p.contractNumber.toLowerCase().includes(searchTerm.toLowerCase()))
                 );
             }
             

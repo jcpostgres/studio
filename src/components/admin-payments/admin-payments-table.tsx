@@ -24,8 +24,9 @@ const DetailItem = ({ label, value }: { label: string; value?: string | number |
 
 export function AdminPaymentsTable({ payments, onEdit, onDelete, loading }: AdminPaymentsTableProps) {
 
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+  const formatCurrency = (amount?: number, currency?: string) => {
+    if (amount === undefined || amount === null) return "-";
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency || "USD" }).format(amount);
   };
   
   if (loading) {
@@ -56,7 +57,7 @@ export function AdminPaymentsTable({ payments, onEdit, onDelete, loading }: Admi
               <TableCell>{payment.providerName}</TableCell>
               <TableCell><Badge variant="secondary">{payment.category}</Badge></TableCell>
               <TableCell>{formatCurrency(payment.paymentAmount, payment.paymentCurrency)}</TableCell>
-              <TableCell>{payment.paymentFrequency}</TableCell>
+              <TableCell>{payment.paymentFrequency || "-"}</TableCell>
               <TableCell className="text-right">
                 <Dialog>
                     <DropdownMenu>

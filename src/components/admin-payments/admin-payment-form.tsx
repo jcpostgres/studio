@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Loader2 } from "lucide-react";
 
+// Client-side schema, fields for payment are optional
 const adminPaymentSchema = z.object({
     conceptName: z.string().min(2, "El nombre del concepto es requerido."),
     category: z.enum(["Servicios Básicos", "Alquiler", "Seguros", "Préstamos/Créditos", "Suscripciones/Membresías", "Impuestos", "Otros"]),
@@ -24,9 +25,9 @@ const adminPaymentSchema = z.object({
     contractNumber: z.string().optional(),
     referenceNumber: z.string().optional(),
     providerId: z.string().optional(),
-    paymentAmount: z.coerce.number().positive("El monto debe ser un número positivo."),
+    paymentAmount: z.coerce.number().optional(),
     paymentCurrency: z.string().default("USD"),
-    paymentFrequency: z.enum(["Mensual", "Bimestral", "Trimestral", "Anual", "Única vez"]),
+    paymentFrequency: z.enum(["Mensual", "Bimestral", "Trimestral", "Anual", "Única vez"]).optional(),
     paymentDueDate: z.string().optional(),
     renewalDate: z.string().optional(),
     paymentMethod: z.string().optional(),
@@ -61,9 +62,7 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
         } : {
             conceptName: "",
             providerName: "",
-            paymentAmount: 0,
             paymentCurrency: "USD",
-            paymentFrequency: "Mensual",
             category: "Otros",
         },
     });
@@ -127,34 +126,39 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
 
                     {/* Payment Data */}
                     <AccordionItem value="payment">
-                        <AccordionTrigger>Datos de Pago</AccordionTrigger>
+                        <AccordionTrigger>Datos de Pago (Opcional)</AccordionTrigger>
                         <AccordionContent className="space-y-4">
-                             <div className="grid grid-cols-2 gap-4">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <FormField control={form.control} name="paymentAmount" render={({ field }) => (
                                     <FormItem><FormLabel>Monto de Pago</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
                                 )}/>
-                                <FormField control={form.control} name="paymentCurrency" render={({ field }) => (
-                                    <FormItem><FormLabel>Moneda</FormLabel><FormControl><Input {...field} disabled /></FormControl><FormMessage /></FormItem>
+                                <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
+                                    <FormItem><FormLabel>Frecuencia de Pago</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Seleccione una frecuencia"/></SelectTrigger></FormControl>
+                                        <SelectContent>{frequencies.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                                    </Select><FormMessage /></FormItem>
                                 )}/>
                             </div>
-                            <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
-                                <FormItem><FormLabel>Frecuencia de Pago</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                    <SelectContent>{frequencies.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-                                </Select><FormMessage /></FormItem>
-                            )}/>
-                            <div className="grid grid-cols-2 gap-4">
-                                <FormField control={form.control} name="paymentDueDate" render={({ field }) => (
-                                    <FormItem><FormLabel>Fecha Límite de Pago</FormLabel><FormControl><Input type="date" {...field} value={field.value || ""} /></FormControl><FormMessage /></FormItem>
-                                )}/>
+                            <FormField
+                                control={form.control}
+                                name="paymentDueDate"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Fecha Límite de Pago (para recordatorios)</FormLabel>
+                                        <FormControl><Input type="date" {...field} value={field.value || ""} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <FormField control={form.control} name="renewalDate" render={({ field }) => (
                                     <FormItem><FormLabel>Fecha de Renovación</FormLabel><FormControl><Input type="date" {...field} value={field.value || ""} /></FormControl><FormMessage /></FormItem>
                                 )}/>
-                            </div>
-                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (
-                                <FormItem><FormLabel>Método de Pago Preferido (Opcional)</FormLabel><FormControl><Input placeholder="Ej. Transferencia Banesco" {...field} /></FormControl><FormMessage /></FormItem>
-                            )}/>
+                                <FormField control={form.control} name="paymentMethod" render={({ field }) => (
+                                    <FormItem><FormLabel>Método de Pago Preferido</FormLabel><FormControl><Input placeholder="Ej. Transferencia Banesco" {...field} /></FormControl><FormMessage /></FormItem>
+                                )}/>
+                             </div>
                         </AccordionContent>
                     </AccordionItem>
                     
@@ -171,7 +175,7 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
                              <FormField control={form.control} name="beneficiaryAccountType" render={({ field }) => (
                                 <FormItem><FormLabel>Tipo de Cuenta</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo"/></SelectTrigger></FormControl>
                                     <SelectContent>
                                         <SelectItem value="Ahorro">Ahorro</SelectItem>
                                         <SelectItem value="Corriente">Corriente</SelectItem>
@@ -199,5 +203,3 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
         </Form>
     );
 }
-
-    
