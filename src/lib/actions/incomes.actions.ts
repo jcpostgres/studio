@@ -22,7 +22,8 @@ const incomeFormSchema = z.object({
   paymentAccount: z.string().min(1),
   responsible: z.string().min(1),
   observations: z.string().optional(),
-  dueDate: z.string().optional(),
+  // Use transform to handle empty string case for an optional date
+  dueDate: z.string().optional().transform(val => val || null),
   status: z.enum(["active", "cancelled"]),
 });
 
@@ -69,7 +70,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
       amountWithCommission,
       remainingBalance,
       timestamp: new Date().toISOString(),
-      dueDate: validatedData.dueDate || null,
+      dueDate: validatedData.dueDate, // Already transformed to string | null
       status: validatedData.status,
     };
 
@@ -81,30 +82,27 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
         docRef = doc(db, `users/${userId}/incomes`, incomeId);
         
         // --- REVERT PREVIOUS TRANSACTION ---
-        // 1. Find the previous account
         const prevAccountRef = doc(db, `users/${userId}/accounts`, previousIncomeData.paymentAccount);
         const prevAccountSnap = await getDoc(prevAccountRef);
 
-        // 2. If the previous account is the SAME as the new one, we use the current snapshot
-        if (previousIncomeData.paymentAccount === validatedData.paymentAccount) {
-             const currentBalance = accountData.balance || 0;
-             const balanceWithoutOldTx = currentBalance - previousIncomeData.amountWithCommission;
-             const finalBalance = balanceWithoutOldTx + amountWithCommission;
-             batch.update(accountRef, { balance: finalBalance });
-        } else {
-        // 3. If the accounts are DIFFERENT, we update both
-            // Revert old account
-            if (prevAccountSnap.exists()) {
-                const prevAccountData = prevAccountSnap.data();
-                batch.update(prevAccountRef, {
-                    balance: prevAccountData.balance - previousIncomeData.amountWithCommission
-                });
-            }
-            // Apply to new account
-            batch.update(accountRef, {
-                balance: accountData.balance + amountWithCommission
+        if (prevAccountSnap.exists()) {
+            const prevBalance = prevAccountSnap.data().balance || 0;
+            batch.update(prevAccountRef, {
+                balance: prevBalance - previousIncomeData.amountWithCommission
             });
         }
+        
+        // --- APPLY NEW TRANSACTION ---
+        // Note: We refetch the account data in case the previous tx was on the same account
+        const currentAccountSnap = await getDoc(accountRef); 
+        const currentBalance = currentAccountSnap.data()?.balance || 0;
+        const balanceAfterRevert = (previousIncomeData.paymentAccount === validatedData.paymentAccount) 
+            ? currentBalance - previousIncomeData.amountWithCommission
+            : currentBalance;
+
+        batch.update(accountRef, {
+            balance: balanceAfterRevert + amountWithCommission
+        });
         
         batch.set(docRef, finalIncomeDataObject);
 

@@ -26,6 +26,12 @@ const transactionFormSchema = z.object({
 }, {
     message: "Las cuentas de origen y destino son requeridas para transferencias.",
     path: ["sourceAccount"], // You can also point to destinationAccount
+}).refine(data => {
+    if (data.type === 'accountTransfer') return data.sourceAccount !== data.destinationAccount;
+    return true;
+}, {
+    message: "La cuenta de origen y destino no pueden ser la misma.",
+    path: ["destinationAccount"],
 });
 
 interface SaveTransactionParams {
@@ -34,6 +40,30 @@ interface SaveTransactionParams {
   transactionId?: string | null;
   previousTransaction?: Transaction | null;
 }
+
+// Helper function to revert a transaction's financial impact
+async function revertTransaction(batch: any, userId: string, transaction: Transaction) {
+    if (transaction.type === 'withdrawal' && transaction.account) {
+        const accountRef = doc(db, `users/${userId}/accounts`, transaction.account);
+        const accountSnap = await getDoc(accountRef);
+        if (accountSnap.exists()) {
+            batch.update(accountRef, { balance: accountSnap.data().balance + transaction.amount });
+        }
+    } else if (transaction.type === 'accountTransfer' && transaction.sourceAccount && transaction.destinationAccount) {
+        const sourceAccountRef = doc(db, `users/${userId}/accounts`, transaction.sourceAccount);
+        const destAccountRef = doc(db, `users/${userId}/accounts`, transaction.destinationAccount);
+
+        const [sourceSnap, destSnap] = await Promise.all([getDoc(sourceAccountRef), getDoc(destAccountRef)]);
+        
+        if (sourceSnap.exists()) {
+            batch.update(sourceAccountRef, { balance: sourceSnap.data().balance + transaction.amount });
+        }
+        if (destSnap.exists()) {
+            batch.update(destAccountRef, { balance: destSnap.data().balance - transaction.amount });
+        }
+    }
+}
+
 
 export async function saveTransaction({ userId, transactionData, transactionId, previousTransaction }: SaveTransactionParams) {
   try {
@@ -45,14 +75,19 @@ export async function saveTransaction({ userId, transactionData, transactionId, 
       await revertTransaction(batch, userId, previousTransaction);
     }
     
-    const newTransactionRef = transactionId ? doc(db, `users/${userId}/transactions`, transactionId) : doc(collection(db, `users/${userId}/transactions`));
-    
+    // Apply new transaction
     if (validatedData.type === 'withdrawal') {
       const accountRef = doc(db, `users/${userId}/accounts`, validatedData.account!);
       const accountSnap = await getDoc(accountRef);
       if (!accountSnap.exists()) throw new Error("La cuenta de retiro no existe.");
       
-      batch.update(accountRef, { balance: accountSnap.data().balance - validatedData.amount });
+      const currentBalance = accountSnap.data().balance;
+      // If we are editing and this is the same account, the balance has been reverted already in the batch
+      const balanceAfterRevert = (previousTransaction && previousTransaction.type === 'withdrawal' && previousTransaction.account === validatedData.account)
+        ? currentBalance + previousTransaction.amount
+        : currentBalance;
+
+      batch.update(accountRef, { balance: balanceAfterRevert - validatedData.amount });
 
     } else if (validatedData.type === 'accountTransfer') {
       const sourceAccountRef = doc(db, `users/${userId}/accounts`, validatedData.sourceAccount!);
@@ -62,10 +97,23 @@ export async function saveTransaction({ userId, transactionData, transactionId, 
       if (!sourceSnap.exists()) throw new Error("La cuenta de origen no existe.");
       if (!destSnap.exists()) throw new Error("La cuenta de destino no existe.");
 
-      batch.update(sourceAccountRef, { balance: sourceSnap.data().balance - validatedData.amount });
-      batch.update(destAccountRef, { balance: destSnap.data().balance + validatedData.amount });
+      // Balances will be reverted in the batch before this, so we need to calculate final state
+      let sourceBalance = sourceSnap.data().balance;
+      let destBalance = destSnap.data().balance;
+
+      if(previousTransaction && previousTransaction.type === 'accountTransfer' && previousTransaction.sourceAccount && previousTransaction.destinationAccount) {
+        if(previousTransaction.sourceAccount === validatedData.sourceAccount) sourceBalance += previousTransaction.amount;
+        if(previousTransaction.destinationAccount === validatedData.destinationAccount) destBalance -= previousTransaction.amount;
+      }
+      
+      batch.update(sourceAccountRef, { balance: sourceBalance - validatedData.amount });
+      batch.update(destAccountRef, { balance: destBalance + validatedData.amount });
     }
 
+    // Set the new/updated transaction data
+    const newTransactionRef = transactionId 
+      ? doc(db, `users/${userId}/transactions`, transactionId) 
+      : doc(collection(db, `users/${userId}/transactions`));
     batch.set(newTransactionRef, { ...validatedData, timestamp: new Date().toISOString() });
     
     await batch.commit();
@@ -102,29 +150,5 @@ export async function deleteTransaction({ userId, transaction }: DeleteTransacti
     } catch (error) {
         console.error("Error al eliminar la transacción:", error);
         return { success: false, message: "No se pudo eliminar la transacción." };
-    }
-}
-
-
-// Helper function to revert a transaction's financial impact
-async function revertTransaction(batch: any, userId: string, transaction: Transaction) {
-    if (transaction.type === 'withdrawal') {
-        const accountRef = doc(db, `users/${userId}/accounts`, transaction.account!);
-        const accountSnap = await getDoc(accountRef);
-        if (accountSnap.exists()) {
-            batch.update(accountRef, { balance: accountSnap.data().balance + transaction.amount });
-        }
-    } else if (transaction.type === 'accountTransfer') {
-        const sourceAccountRef = doc(db, `users/${userId}/accounts`, transaction.sourceAccount!);
-        const destAccountRef = doc(db, `users/${userId}/accounts`, transaction.destinationAccount!);
-
-        const [sourceSnap, destSnap] = await Promise.all([getDoc(sourceAccountRef), getDoc(destAccountRef)]);
-        
-        if (sourceSnap.exists()) {
-            batch.update(sourceAccountRef, { balance: sourceSnap.data().balance + transaction.amount });
-        }
-        if (destSnap.exists()) {
-            batch.update(destAccountRef, { balance: destSnap.data().balance - transaction.amount });
-        }
     }
 }

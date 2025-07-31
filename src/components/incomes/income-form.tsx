@@ -117,22 +117,23 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   }, [userId]);
 
   useEffect(() => {
-    const existingServiceNames = fields.map(f => f.name);
+    const existingServiceNames = fields.map(field => field.name);
     
+    // Add new fields for newly selected services
     selectedServices.forEach(serviceName => {
-      if (!existingServiceNames.includes(serviceName)) {
-        const originalDetail = incomeToEdit?.servicesDetails.find(d => d.name === serviceName);
-        append({ name: serviceName, amount: originalDetail?.amount || 0 });
-      }
+        if (!existingServiceNames.includes(serviceName)) {
+            const originalDetail = incomeToEdit?.servicesDetails.find(d => d.name === serviceName);
+            append({ name: serviceName, amount: originalDetail?.amount || 0 });
+        }
     });
 
+    // Remove fields for deselected services
     fields.forEach((field, index) => {
-      if (!selectedServices.includes(field.name)) {
-        remove(index);
-      }
+        if (!selectedServices.includes(field.name)) {
+            remove(index);
+        }
     });
-
-  }, [selectedServices, fields, append, remove, incomeToEdit]);
+  }, [selectedServices, fields, append, remove, incomeToEdit?.servicesDetails]);
 
 
   const showDueDateField = useMemo(() => {
