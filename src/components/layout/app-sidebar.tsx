@@ -39,6 +39,7 @@ const mainNav = [
 const reportsNav = [
   { href: "/dashboard/total-general", icon: FileText, label: "Total General" },
   { href: "/dashboard/service-report", icon: BarChart2, label: "Reporte de Servicios" },
+  { href: "/dashboard/payroll", icon: Users, label: "Reporte de Nómina" },
 ];
 
 const settingsNav = [
