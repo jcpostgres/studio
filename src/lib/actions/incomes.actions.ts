@@ -121,7 +121,11 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
     
     const newIncomeId = docRef.id;
 
+    // Reminder logic should be here
     const hasPlanServices = finalIncomeDataObject.services.some(service => servicesRequiringDueDate.includes(service));
+    
+    // Reference to the reminder document, using the income ID
+    const reminderRef = doc(db, `users/${userId}/reminders`, newIncomeId);
     
     if (hasPlanServices && finalIncomeDataObject.dueDate) {
         const renewalAmount = finalIncomeDataObject.servicesDetails
@@ -146,8 +150,14 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
             adminPaymentId: null,
         };
 
-        const reminderRef = doc(db, `users/${userId}/reminders`, newIncomeId);
         batch.set(reminderRef, reminderData, { merge: true });
+    } else {
+        // If the income no longer qualifies for a reminder (e.g., date removed, service changed),
+        // we should delete the existing reminder.
+        const reminderSnap = await getDoc(reminderRef);
+        if (reminderSnap.exists()) {
+            batch.delete(reminderRef);
+        }
     }
 
     await batch.commit();

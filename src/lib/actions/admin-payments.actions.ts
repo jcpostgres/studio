@@ -17,8 +17,8 @@ const adminPaymentActionSchema = z.object({
     paymentAmount: z.coerce.number().optional(),
     paymentCurrency: z.string().default("USD"),
     paymentFrequency: z.enum(["Mensual", "Bimestral", "Trimestral", "Anual", "Única vez"]).optional(),
-    paymentDueDate: z.string().optional(),
-    renewalDate: z.string().optional(),
+    paymentDueDate: z.string().optional().transform(val => val || null),
+    renewalDate: z.string().optional().transform(val => val || null),
     paymentMethod: z.string().optional(),
     beneficiaryBank: z.string().optional(),
     beneficiaryAccountNumber: z.string().optional(),
@@ -48,8 +48,6 @@ export async function saveAdminPayment({ userId, paymentData, paymentId }: SaveA
 
         const dataToSave: Omit<AdminPayment, 'id'> = {
             ...validatedData,
-            paymentDueDate: validatedData.paymentDueDate || null,
-            renewalDate: validatedData.renewalDate || null,
             createdAt: existingData?.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
@@ -59,7 +57,7 @@ export async function saveAdminPayment({ userId, paymentData, paymentId }: SaveA
         // --- REMINDER LOGIC ---
         const reminderRef = doc(db, `users/${userId}/reminders`, docRef.id);
         if (dataToSave.paymentDueDate) {
-            const reminderMessage = `Recordatorio de Pago: ${dataToSave.conceptName} vence el ${dataToSave.paymentDueDate}.`;
+            const reminderMessage = `Recordatorio de Pago: ${dataToSave.conceptName} vence el ${new Date(dataToSave.paymentDueDate).toLocaleDateString()}.`;
             const reminderData: Omit<Reminder, 'id'> = {
                 incomeId: null,
                 adminPaymentId: docRef.id,
