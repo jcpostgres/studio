@@ -4,11 +4,11 @@ export default function PayrollPage() {
   return (
     <div>
       <PageHeader
-        title="Nómina y Reportes"
-        description="Gestiona los empleados y consulta el historial de pagos."
+        title="Gestión de Nómina"
+        description="Administra los empleados y registra los pagos."
       />
       <div className="mt-8">
-        <p>Contenido de la página de nómina...</p>
+        <p>Contenido de la página de gestión de nómina...</p>
       </div>
     </div>
   );
