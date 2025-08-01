@@ -17,9 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
-import type { Account } from "@/lib/types";
-import { suggestCategories, saveExpense } from "@/lib/actions/expenses.actions";
+import { collection, onSnapshot, doc, getDoc, writeBatch } from "firebase/firestore";
+import type { Account, Expense } from "@/lib/types";
+import { suggestCategories } from "@/lib/actions/expenses.actions";
 import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
@@ -111,13 +111,39 @@ export function ExpenseForm() {
     }
     setIsSubmitting(true);
     
-    const result = await saveExpense({ userId, expenseData: values });
+     try {
+        const batch = writeBatch(db);
 
-    if (result.success) {
-        toast({ title: "Éxito", description: result.message });
+        const expenseRef = doc(collection(db, `users/${userId}/expenses`));
+        
+        const finalExpenseData: Omit<Expense, 'id'> = {
+          ...values,
+          responsible: values.responsible || "",
+          observations: values.observations || "",
+          timestamp: new Date().toISOString(),
+        };
+
+        batch.set(expenseRef, finalExpenseData);
+
+        const accountRef = doc(db, `users/${userId}/accounts`, values.paymentAccount);
+        const accountSnap = await getDoc(accountRef);
+        if (!accountSnap.exists()) {
+          toast({ variant: "destructive", title: "Error", description: "La cuenta de pago no existe." });
+          setIsSubmitting(false);
+          return;
+        }
+        const currentBalance = accountSnap.data()?.balance || 0;
+        batch.update(accountRef, {
+            balance: currentBalance - values.amount
+        });
+
+        await batch.commit();
+        toast({ title: "Éxito", description: "Gasto registrado correctamente." });
         router.push("/dashboard/expenses");
-    } else {
-        toast({ variant: "destructive", title: "Error al guardar", description: result.message });
+
+    } catch (error) {
+        console.error("Error al guardar el gasto:", error);
+        toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo guardar el gasto." });
         setIsSubmitting(false);
     }
   }
