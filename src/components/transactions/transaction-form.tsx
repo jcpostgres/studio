@@ -28,9 +28,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, doc, writeBatch, getDoc, } from "firebase/firestore";
 import type { Account, Transaction } from "@/lib/types";
-import { saveTransaction } from "@/lib/actions/transactions.actions";
 
 const formSchema = z.object({
   type: z.enum(["withdrawal", "accountTransfer"], { required_error: "Debes seleccionar un tipo de transacción."}),
@@ -115,21 +114,70 @@ export function TransactionForm({ transactionToEdit, onSuccess }: TransactionFor
     }
     setIsSubmitting(true);
     
-    const result = await saveTransaction({ 
-        userId, 
-        transactionData: values,
-        transactionId: transactionToEdit?.id,
-        previousTransaction: transactionToEdit,
-    });
+    try {
+        const batch = writeBatch(db);
+        const transactionRef = transactionToEdit 
+            ? doc(db, `users/${userId}/transactions`, transactionToEdit.id)
+            : doc(collection(db, `users/${userId}/transactions`));
 
-    if (result.success) {
-        toast({ title: "Éxito", description: result.message });
+        // Revert previous transaction if editing
+        if (transactionToEdit) {
+            if (transactionToEdit.type === 'withdrawal' && transactionToEdit.account) {
+                const prevAccRef = doc(db, `users/${userId}/accounts`, transactionToEdit.account);
+                const prevAccSnap = await getDoc(prevAccRef);
+                if (prevAccSnap.exists()) batch.update(prevAccRef, { balance: prevAccSnap.data().balance + transactionToEdit.amount });
+            } else if (transactionToEdit.type === 'accountTransfer' && transactionToEdit.sourceAccount && transactionToEdit.destinationAccount) {
+                const prevSourceRef = doc(db, `users/${userId}/accounts`, transactionToEdit.sourceAccount);
+                const prevDestRef = doc(db, `users/${userId}/accounts`, transactionToEdit.destinationAccount);
+                const [prevSourceSnap, prevDestSnap] = await Promise.all([getDoc(prevSourceRef), getDoc(prevDestRef)]);
+                if (prevSourceSnap.exists()) batch.update(prevSourceRef, { balance: prevSourceSnap.data().balance + transactionToEdit.amount });
+                if (prevDestSnap.exists()) batch.update(prevDestRef, { balance: prevDestSnap.data().balance - transactionToEdit.amount });
+            }
+        }
+        
+        // Apply new transaction
+        if (values.type === 'withdrawal') {
+            const accRef = doc(db, `users/${userId}/accounts`, values.account!);
+            const accSnap = await getDoc(accRef);
+            if (!accSnap.exists()) throw new Error("La cuenta no existe.");
+            
+            const currentBalance = accSnap.data().balance;
+            const balanceAfterRevert = (transactionToEdit && transactionToEdit.type === 'withdrawal' && transactionToEdit.account === values.account)
+                ? currentBalance + transactionToEdit.amount
+                : currentBalance;
+
+            batch.update(accRef, { balance: balanceAfterRevert - values.amount });
+        } else if (values.type === 'accountTransfer') {
+            const sourceRef = doc(db, `users/${userId}/accounts`, values.sourceAccount!);
+            const destRef = doc(db, `users/${userId}/accounts`, values.destinationAccount!);
+            const [sourceSnap, destSnap] = await Promise.all([getDoc(sourceRef), getDoc(destRef)]);
+
+            if (!sourceSnap.exists() || !destSnap.exists()) throw new Error("Una de las cuentas no existe.");
+            
+            let sourceBalance = sourceSnap.data().balance;
+            let destBalance = destSnap.data().balance;
+            
+            if (transactionToEdit && transactionToEdit.type === 'accountTransfer' && transactionToEdit.sourceAccount && transactionToEdit.destinationAccount) {
+                if (transactionToEdit.sourceAccount === values.sourceAccount) sourceBalance += transactionToEdit.amount;
+                if (transactionToEdit.destinationAccount === values.destinationAccount) destBalance -= transactionToEdit.amount;
+            }
+
+            batch.update(sourceRef, { balance: sourceBalance - values.amount });
+            batch.update(destRef, { balance: destBalance + values.amount });
+        }
+
+        batch.set(transactionRef, { ...values, timestamp: new Date().toISOString() });
+
+        await batch.commit();
+
+        toast({ title: "Éxito", description: transactionToEdit ? "Transacción actualizada." : "Transacción guardada." });
         onSuccess();
-    } else {
-        toast({ variant: "destructive", title: "Error al guardar", description: result.message });
+    } catch(error) {
+        console.error("Error saving transaction:", error);
+        toast({ variant: "destructive", title: "Error", description: (error as Error).message || "No se pudo guardar la transacción." });
+    } finally {
+        setIsSubmitting(false);
     }
-    
-    setIsSubmitting(false);
   }
 
   return (
@@ -146,6 +194,7 @@ export function TransactionForm({ transactionToEdit, onSuccess }: TransactionFor
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                   className="flex flex-col space-y-1"
+                  disabled={!!transactionToEdit}
                 >
                   <FormItem className="flex items-center space-x-3 space-y-0">
                     <FormControl><RadioGroupItem value="withdrawal" /></FormControl>
@@ -238,3 +287,5 @@ export function TransactionForm({ transactionToEdit, onSuccess }: TransactionFor
     </Form>
   );
 }
+
+    

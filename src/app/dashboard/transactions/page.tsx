@@ -8,7 +8,7 @@ import { PlusCircle } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { Transaction } from "@/lib/types";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { TransactionForm } from "@/components/transactions/transaction-form";
 import { TransactionsTable } from "@/components/transactions/transactions-table";
@@ -29,7 +29,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { deleteTransaction } from "@/lib/actions/transactions.actions";
 
 
 export default function TransactionsPage() {
@@ -84,20 +83,30 @@ export default function TransactionsPage() {
 
   const confirmDelete = async () => {
     if (!userId || !transactionToDelete) return;
+    try {
+        const batch = writeBatch(db);
+        
+        if (transactionToDelete.type === 'withdrawal' && transactionToDelete.account) {
+            const accountRef = doc(db, `users/${userId}/accounts`, transactionToDelete.account);
+            const accountSnap = await getDoc(accountRef);
+            if (accountSnap.exists()) batch.update(accountRef, { balance: accountSnap.data().balance + transactionToDelete.amount });
+        } else if (transactionToDelete.type === 'accountTransfer' && transactionToDelete.sourceAccount && transactionToDelete.destinationAccount) {
+            const sourceAccRef = doc(db, `users/${userId}/accounts`, transactionToDelete.sourceAccount);
+            const destAccRef = doc(db, `users/${userId}/accounts`, transactionToDelete.destinationAccount);
+            const [sourceSnap, destSnap] = await Promise.all([getDoc(sourceAccRef), getDoc(destAccRef)]);
+            if(sourceSnap.exists()) batch.update(sourceAccRef, { balance: sourceSnap.data().balance + transactionToDelete.amount });
+            if(destSnap.exists()) batch.update(destAccRef, { balance: destSnap.data().balance - transactionToDelete.amount });
+        }
+        
+        const transactionRef = doc(db, `users/${userId}/transactions`, transactionToDelete.id);
+        batch.delete(transactionRef);
 
-    const result = await deleteTransaction({ userId, transaction: transactionToDelete });
+        await batch.commit();
 
-    if (result.success) {
-      toast({
-        title: "Éxito",
-        description: result.message,
-      });
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: result.message,
-      });
+        toast({ title: "Éxito", description: "Transacción eliminada y saldos revertidos." });
+    } catch (error) {
+        console.error("Error deleting transaction: ", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar la transacción." });
     }
     
     setIsAlertOpen(false);
@@ -178,3 +187,5 @@ export default function TransactionsPage() {
     </>
   );
 }
+
+    

@@ -15,9 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
-import type { Income, Account } from "@/lib/types";
-import { saveIncome } from "@/lib/actions/incomes.actions";
+import { collection, onSnapshot, doc, writeBatch, getDoc, } from "firebase/firestore";
+import type { Income, Account, Reminder } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 
 const serviceDetailSchema = z.object({
@@ -154,18 +153,109 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     
     setIsSubmitting(true);
     
-    const result = await saveIncome({
-        userId,
-        incomeData: values,
-        incomeId: incomeToEdit?.id,
-        previousIncomeData: incomeToEdit
-    });
+    try {
+        const batch = writeBatch(db);
 
-    if (result.success) {
-        toast({ title: "Éxito", description: result.message });
+        const accountRef = doc(db, `users/${userId}/accounts`, values.paymentAccount);
+        const accountSnap = await getDoc(accountRef);
+        if (!accountSnap.exists()) {
+            toast({ variant: "destructive", title: "Error", description: "La cuenta de pago no existe." });
+            setIsSubmitting(false);
+            return;
+        }
+
+        const finalTotalContracted = values.servicesDetails.reduce((sum, service) => sum + service.amount, 0);
+        const finalCommission = accountSnap.data().commission || 0;
+        const finalCommissionAmount = values.amountPaid * finalCommission;
+        const finalAmountWithCommission = values.amountPaid - finalCommissionAmount;
+        const finalRemainingBalance = finalTotalContracted - values.amountPaid;
+
+        const finalIncomeData: Omit<Income, 'id'> = {
+            ...values,
+            dueDate: values.dueDate || null,
+            brandName: values.brandName || "",
+            observations: values.observations || "",
+            totalContractedAmount: finalTotalContracted,
+            commissionRate: finalCommission,
+            commissionAmount: finalCommissionAmount,
+            amountWithCommission: finalAmountWithCommission,
+            remainingBalance: finalRemainingBalance,
+            timestamp: new Date().toISOString(),
+        };
+
+        const docRef = incomeToEdit 
+            ? doc(db, `users/${userId}/incomes`, incomeToEdit.id)
+            : doc(collection(db, `users/${userId}/incomes`));
+
+        // Revert previous amounts if editing
+        if (incomeToEdit) {
+            const prevAccountRef = doc(db, `users/${userId}/accounts`, incomeToEdit.paymentAccount);
+            const prevAccountSnap = await getDoc(prevAccountRef);
+            if (prevAccountSnap.exists()) {
+                const prevBalance = prevAccountSnap.data().balance;
+                batch.update(prevAccountRef, {
+                    balance: prevBalance - incomeToEdit.amountWithCommission
+                });
+            }
+        }
+        
+        // Apply new amounts
+        // We must re-fetch the account data to get the most up-to-date balance in case the account is the same
+        const currentAccountSnap = await getDoc(accountRef);
+        const currentBalance = currentAccountSnap.data()?.balance || 0;
+        const balanceAfterRevert = (incomeToEdit && incomeToEdit.paymentAccount === values.paymentAccount)
+            ? currentBalance - incomeToEdit.amountWithCommission
+            : currentBalance;
+        
+        batch.update(accountRef, {
+            balance: balanceAfterRevert + finalAmountWithCommission
+        });
+
+        batch.set(docRef, finalIncomeData, { merge: true });
+        
+        // Reminder Logic
+        const newIncomeId = docRef.id;
+        const reminderRef = doc(db, `users/${userId}/reminders`, newIncomeId);
+        const hasPlanServices = finalIncomeData.services.some(service => servicesRequiringDueDate.includes(service));
+
+        if (hasPlanServices && finalIncomeData.dueDate) {
+            const renewalAmount = finalIncomeData.servicesDetails
+                .filter(s => servicesRequiringDueDate.includes(s.name))
+                .reduce((sum, s) => sum + s.amount, 0);
+
+            const reminderMessage = `Recordatorio de Renovación: El plan de ${finalIncomeData.client} vence el ${finalIncomeData.dueDate}. Monto: $${renewalAmount.toFixed(2)}.`;
+            
+            const reminderData: Omit<Reminder, 'id'> = {
+                incomeId: newIncomeId,
+                clientId: finalIncomeData.client,
+                brandName: finalIncomeData.brandName || "",
+                service: finalIncomeData.services.filter(s => servicesRequiringDueDate.includes(s)).join(', '),
+                renewalAmount: renewalAmount,
+                debtAmount: finalIncomeData.remainingBalance,
+                dueDate: finalIncomeData.dueDate,
+                status: 'pending',
+                contact: '', 
+                message: reminderMessage,
+                timestamp: new Date().toISOString(),
+                resolvedAt: null,
+                adminPaymentId: null,
+            };
+
+            batch.set(reminderRef, reminderData, { merge: true });
+        } else {
+            const reminderSnap = await getDoc(reminderRef);
+            if (reminderSnap.exists()) {
+                batch.delete(reminderRef);
+            }
+        }
+        
+        await batch.commit();
+        toast({ title: "Éxito", description: incomeToEdit ? "Ingreso actualizado." : "Ingreso registrado." });
         router.push("/dashboard/incomes");
-    } else {
-        toast({ variant: "destructive", title: "Error", description: result.message });
+
+    } catch (error) {
+        console.error("Error al guardar el ingreso:", error);
+        toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo guardar el ingreso." });
         setIsSubmitting(false);
     }
   }
