@@ -123,7 +123,7 @@ export default function ServiceReportPage() {
                 </Select>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MetricCard title="Total Servicios" value={annualSummary.totalServices} icon={ClipboardList} loading={loading} />
                 <MetricCard title="Ingresos Totales" value={annualSummary.totalIncome} icon={TrendingUp} loading={loading} formatAsCurrency />
             </div>
