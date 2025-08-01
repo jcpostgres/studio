@@ -67,7 +67,6 @@ export default function PayrollReportPage() {
         const totalPayroll = employees.reduce((sum, emp) => sum + emp.monthlySalary, 0);
         const totalPaid = employeeReports.reduce((sum, rep) => sum + rep.totalPaid, 0);
         const totalPending = totalPayroll - totalPaid;
-        // This is a placeholder for bonus calculation. We'll assume any payment beyond salary is a bonus for now.
         const totalBonuses = employeeReports.reduce((sum, rep) => {
             const salary = rep.monthlySalary;
             return sum + Math.max(0, rep.totalPaid - salary);
@@ -151,7 +150,7 @@ export default function PayrollReportPage() {
                                    {emp.payments.length > 0 ? emp.payments.map(p => (
                                      <div key={p.id} className="bg-card/50 p-3 rounded-lg flex justify-between items-center">
                                        <div>
-                                            <p className="font-medium">Pago {p.paymentType === '4th' ? '1 (Día 4)' : '2 (Día 19)'}</p>
+                                            <p className="font-medium">Pago del {p.paymentType === '4th' ? 'Día 4' : 'Día 19'}</p>
                                             <p className="text-xl font-bold">{formatCurrency(p.totalAmount)}</p>
                                        </div>
                                        <Badge className="bg-green-500/10 text-green-400 border-green-500/20">Pagado</Badge>
@@ -159,16 +158,6 @@ export default function PayrollReportPage() {
                                    )) : <p className="text-sm text-muted-foreground p-3">No hay pagos registrados para este mes.</p>}
                                 </div>
                                 
-                                 {/* Placeholder for bonuses */}
-                                 {/* <p className="font-semibold mb-2">Bonos</p>
-                                 <div className="bg-primary/10 p-3 rounded-lg flex justify-between items-center mb-4">
-                                   <div>
-                                       <p className="font-medium text-primary">$100</p>
-                                       <p className="text-sm text-muted-foreground">Proyecto completado</p>
-                                   </div>
-                                    <p className="text-sm text-muted-foreground">2024-01-15</p>
-                                 </div> */}
-
                                 <div className="bg-green-500/10 text-green-400 p-3 rounded-lg flex justify-between items-center font-bold">
                                     <p>Total Pagado este Mes:</p>
                                     <p>{formatCurrency(emp.totalPaid)}</p>

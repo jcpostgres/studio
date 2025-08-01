@@ -56,11 +56,8 @@ export interface PayrollPayment {
     paymentType: '4th' | '19th';
     month: number;
     year: number;
-    amount1: number;
-    account1: string;
-    amount2: number;
-    account2: string;
     totalAmount: number;
+    paymentAccount: string;
     date: string;
     observations: string;
     timestamp: string; // ISO String
