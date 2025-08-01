@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Calendar, CheckCircle, XCircle } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Calendar, CheckCircle, XCircle, Award } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmployeeForm } from "@/components/payroll/employee-form";
 import { PayrollPaymentForm } from "@/components/payroll/payroll-payment-form";
@@ -36,7 +36,7 @@ export default function PayrollPage() {
     const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-    const [paymentContext, setPaymentContext] = useState<{ employee: Employee, paymentType: '4th' | '20th' } | null>(null);
+    const [paymentContext, setPaymentContext] = useState<{ employee: Employee, paymentType: '4th' | '20th' | 'bonus' } | null>(null);
 
     // Alert dialog states
     const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -131,7 +131,7 @@ export default function PayrollPage() {
         setIsEmployeeDialogOpen(true);
     };
     
-    const handleRegisterPayment = (employee: Employee, paymentType: '4th' | '20th') => {
+    const handleRegisterPayment = (employee: Employee, paymentType: '4th' | '20th' | 'bonus') => {
         setPaymentContext({ employee, paymentType });
         setIsPaymentDialogOpen(true);
     };
@@ -172,9 +172,9 @@ export default function PayrollPage() {
                 </Select>
             </div>
             
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                  {loading ? (
-                    [...Array(3)].map((_, i) => <Skeleton key={i} className="h-64 w-full rounded-xl" />)
+                    [...Array(2)].map((_, i) => <Skeleton key={i} className="h-72 w-full rounded-xl" />)
                 ) : employees.length > 0 ? (
                     employees.map(employee => {
                         const status = employeePaymentStatus.get(employee.id) || { payment4th: false, payment20th: false };
@@ -221,6 +221,15 @@ export default function PayrollPage() {
                                                 {status.payment20th ? "Pagado" : "Pagar"}
                                             </Button>
                                         </div>
+                                        <div className="flex justify-between items-center p-2 bg-background/50 rounded-lg">
+                                            <div className="flex items-center gap-2">
+                                                <Award className="h-5 w-5 text-yellow-400"/>
+                                                <span>Bono Adicional</span>
+                                            </div>
+                                            <Button size="sm" variant={"default"} onClick={() => handleRegisterPayment(employee, 'bonus')}>
+                                               Pagar Bono
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             </Card>
@@ -256,7 +265,12 @@ export default function PayrollPage() {
             }}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Registrar Pago a {paymentContext?.employee.name}</DialogTitle>
+                        <DialogTitle>
+                            {paymentContext?.paymentType === 'bonus' 
+                                ? `Registrar Bono a ${paymentContext?.employee.name}`
+                                : `Registrar Pago a ${paymentContext?.employee.name}`
+                            }
+                        </DialogTitle>
                     </DialogHeader>
                      {paymentContext && (
                         <PayrollPaymentForm
@@ -288,5 +302,7 @@ export default function PayrollPage() {
         </>
     );
 }
+
+    
 
     

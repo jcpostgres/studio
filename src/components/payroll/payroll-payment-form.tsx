@@ -28,7 +28,7 @@ type PayrollPaymentFormValues = z.infer<typeof formSchema>;
 
 interface PayrollPaymentFormProps {
     employee: Employee;
-    paymentType: '4th' | '20th';
+    paymentType: '4th' | '20th' | 'bonus';
     selectedDate: { month: number; year: number };
     accounts: Account[];
     onSuccess: () => void;
@@ -43,9 +43,11 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
         resolver: zodResolver(formSchema),
         defaultValues: {
             date: new Date().toISOString().split('T')[0],
-            totalAmount: employee.biWeeklySalary,
+            totalAmount: paymentType === 'bonus' ? 0 : employee.biWeeklySalary,
             paymentAccount: "",
-            observations: `Pago quincena ${paymentType === '4th' ? '1' : '2'} a ${employee.name}`,
+            observations: paymentType === 'bonus' 
+                ? `Bono para ${employee.name}` 
+                : `Pago quincena ${paymentType === '4th' ? '1' : '2'} a ${employee.name}`,
         },
     });
 
@@ -84,7 +86,7 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
                 amount: values.totalAmount,
                 paymentAccount: values.paymentAccount,
                 responsible: 'Sistema',
-                observations: `Pago de nómina a ${employee.name}. Ref: ${paymentRef.id}`,
+                observations: values.observations || `Pago de nómina a ${employee.name}. Ref: ${paymentRef.id}`,
                 timestamp: new Date().toISOString(),
             };
             batch.set(expenseRef, expenseToSave);
@@ -143,5 +145,7 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
         </Form>
     );
 }
+
+    
 
     

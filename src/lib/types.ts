@@ -53,7 +53,7 @@ export interface PayrollPayment {
     id: string;
     employeeId: string;
     employeeName: string;
-    paymentType: '4th' | '20th';
+    paymentType: '4th' | '20th' | 'bonus';
     month: number;
     year: number;
     totalAmount: number;
@@ -127,5 +127,7 @@ export interface AdminPayment {
     createdAt: string; // ISO String
     updatedAt: string; // ISO String
 }
+
+    
 
     
