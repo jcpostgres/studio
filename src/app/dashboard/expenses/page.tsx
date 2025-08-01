@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
 import { Expense } from "@/lib/types";
 import { db } from "@/lib/firebase";
@@ -24,6 +25,8 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
+  const [filterMonth, setFilterMonth] = useState<string>((new Date().getMonth()).toString());
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
@@ -46,17 +49,37 @@ export default function ExpensesPage() {
   
   const filteredExpenses = useMemo(() => {
     return expenses.filter(expense => {
+      const expenseDate = new Date(`${expense.date}T00:00:00`);
       const searchStr = searchTerm.toLowerCase();
+
       const matchesSearch = searchTerm === '' ||
         expense.category.toLowerCase().includes(searchStr) ||
         (expense.observations && expense.observations.toLowerCase().includes(searchStr));
-      return matchesSearch;
+      const matchesYear = !filterYear || expenseDate.getFullYear().toString() === filterYear;
+      const matchesMonth = !filterMonth || expenseDate.getMonth().toString() === filterMonth;
+      
+      return matchesSearch && matchesYear && matchesMonth;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [expenses, searchTerm]);
+  }, [expenses, searchTerm, filterYear, filterMonth]);
   
   const totalFilteredExpense = useMemo(() => {
     return filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   }, [filteredExpenses]);
+
+  const availableYears = useMemo(() => {
+      const years = new Set(expenses.map(exp => new Date(exp.date).getFullYear().toString()));
+      const currentYear = new Date().getFullYear().toString();
+      if (!years.has(currentYear)) {
+          years.add(currentYear);
+      }
+      return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+  }, [expenses]);
+  
+  const months = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+
 
   const handleEdit = (expenseId: string) => {
     // Implement edit navigation if an edit page is created
@@ -122,11 +145,25 @@ export default function ExpensesPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Input
-              placeholder="Buscar por categoría u observación..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Input
+                placeholder="Buscar por categoría u observación..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+               <Select value={filterYear} onValueChange={setFilterYear}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar Año" /></SelectTrigger>
+                <SelectContent>
+                  {availableYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={filterMonth} onValueChange={setFilterMonth}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar Mes" /></SelectTrigger>
+                <SelectContent>
+                  {months.map((month, index) => <SelectItem key={index} value={index.toString()}>{month}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
 
