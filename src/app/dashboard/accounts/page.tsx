@@ -1,23 +1,21 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, DollarSign, ArrowDown, Wallet, Landmark, Eye } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { Account } from "@/lib/types";
+import { Account, Transaction } from "@/lib/types";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { AccountForm } from "@/components/accounts/account-form";
-import { AccountsTable } from "@/components/accounts/accounts-table";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -30,46 +28,47 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 export default function AccountsPage() {
   const { userId } = useAuth();
   const { toast } = useToast();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
-
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
 
   useEffect(() => {
-    if (!userId || !db) return;
+    if (!userId) return;
 
-    const accountsColRef = collection(db, `users/${userId}/accounts`);
-    const unsubscribe = onSnapshot(
-      accountsColRef,
-      (snapshot) => {
-        const fetchedAccounts = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Account[];
-        setAccounts(fetchedAccounts);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching accounts:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar las cuentas.",
-        });
-        setLoading(false);
-      }
-    );
+    const accountsUnsub = onSnapshot(collection(db, `users/${userId}/accounts`), (snapshot) => {
+      const fetchedAccounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
+      setAccounts(fetchedAccounts);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching accounts:", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las cuentas." });
+      setLoading(false);
+    });
 
-    return () => unsubscribe();
+    const transactionsUnsub = onSnapshot(collection(db, `users/${userId}/transactions`), (snapshot) => {
+      const fetchedTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
+      setTransactions(fetchedTransactions);
+    });
+
+    return () => {
+      accountsUnsub();
+      transactionsUnsub();
+    };
   }, [userId, toast]);
+  
+  const totalBalance = useMemo(() => accounts.reduce((sum, acc) => sum + acc.balance, 0), [accounts]);
+  const totalWithdrawals = useMemo(() => transactions.filter(t => t.type === 'withdrawal').reduce((sum, t) => sum + t.amount, 0), [transactions]);
 
   const handleEdit = (account: Account) => {
     setEditingAccount(account);
@@ -85,19 +84,11 @@ export default function AccountsPage() {
     if (!userId || !accountToDelete) return;
 
     try {
-      const accountDocRef = doc(db, `users/${userId}/accounts`, accountToDelete.id);
-      await deleteDoc(accountDocRef);
-      toast({
-        title: "Éxito",
-        description: "Cuenta eliminada correctamente.",
-      });
+      await deleteDoc(doc(db, `users/${userId}/accounts`, accountToDelete.id));
+      toast({ title: "Éxito", description: "Cuenta eliminada correctamente." });
     } catch (error) {
       console.error("Error deleting account:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo eliminar la cuenta.",
-      });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar la cuenta." });
     } finally {
       setIsAlertOpen(false);
       setAccountToDelete(null);
@@ -108,46 +99,36 @@ export default function AccountsPage() {
     name: string;
     balance: number;
     commission: number;
+    type: "Efectivo" | "Digital" | "Bancario";
   }) => {
     if (!userId) return;
 
     const accountData = {
       name: values.name,
       balance: values.balance,
-      commission: values.commission / 100, // Convert percentage to decimal
+      commission: values.commission / 100,
+      type: values.type,
     };
 
     try {
       if (editingAccount) {
-        // Update existing account
         const accountDocRef = doc(db, `users/${userId}/accounts`, editingAccount.id);
         await updateDoc(accountDocRef, {
             name: accountData.name,
             commission: accountData.commission,
-            // Balance is not updated on edit
+            type: accountData.type,
         });
-        toast({
-          title: "Éxito",
-          description: "Cuenta actualizada correctamente.",
-        });
+        toast({ title: "Éxito", description: "Cuenta actualizada correctamente." });
       } else {
-        // Create new account
         const newAccountRef = doc(collection(db, `users/${userId}/accounts`));
         await setDoc(newAccountRef, { ...accountData, id: newAccountRef.id });
-        toast({
-          title: "Éxito",
-          description: "Cuenta creada correctamente.",
-        });
+        toast({ title: "Éxito", description: "Cuenta creada correctamente." });
       }
       setIsDialogOpen(false);
       setEditingAccount(null);
     } catch (error) {
       console.error("Error saving account:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo guardar la cuenta.",
-      });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la cuenta." });
     }
   };
 
@@ -155,38 +136,91 @@ export default function AccountsPage() {
     setEditingAccount(null);
     setIsDialogOpen(true);
   };
+  
+  const formatCurrency = (amount: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+  
+  const getAccountIcon = (type: Account['type']) => {
+    switch (type) {
+        case 'Efectivo': return <Wallet className="h-6 w-6 text-green-400"/>;
+        case 'Digital': return <Landmark className="h-6 w-6 text-cyan-400"/>;
+        case 'Bancario': return <Landmark className="h-6 w-6 text-purple-400"/>;
+        default: return <DollarSign className="h-6 w-6"/>;
+    }
+  };
+
 
   return (
     <>
-      <PageHeader
-        title="Cuentas"
-        description="Consulta y administra los saldos de tus cuentas."
-      >
-        <Button onClick={openNewAccountDialog}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Agregar Cuenta
+      <PageHeader title="Cuentas">
+        <Button onClick={openNewAccountDialog} size="icon" className="rounded-full h-10 w-10">
+          <PlusCircle className="h-5 w-5" />
         </Button>
       </PageHeader>
-      <div className="mt-8">
-        <Card>
-            <CardContent className="p-6">
-                 <AccountsTable
-                    accounts={accounts}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    loading={loading}
-                />
-            </CardContent>
+      
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-4 bg-card-foreground/5 rounded-xl flex items-center gap-4">
+            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-cyan-500/10 text-cyan-400">
+                <DollarSign className="h-5 w-5" />
+            </div>
+            <div>
+                <p className="text-sm text-muted-foreground">Balance Total</p>
+                {loading ? <Skeleton className="h-6 w-24 mt-1" /> : <p className="text-xl font-bold">{formatCurrency(totalBalance)}</p>}
+            </div>
         </Card>
+         <Card className="p-4 bg-card-foreground/5 rounded-xl flex items-center gap-4">
+            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-500/10 text-red-400">
+                <ArrowDown className="h-5 w-5" />
+            </div>
+            <div>
+                <p className="text-sm text-muted-foreground">Total Alivios</p>
+                {loading ? <Skeleton className="h-6 w-24 mt-1" /> : <p className="text-xl font-bold">{formatCurrency(totalWithdrawals)}</p>}
+            </div>
+        </Card>
+      </div>
+
+      <div className="mt-8 space-y-4">
+        {loading ? (
+            [...Array(2)].map((_, i) => <Skeleton key={i} className="h-40 w-full rounded-xl" />)
+        ) : accounts.length > 0 ? (
+            accounts.map(account => (
+                <Card key={account.id} className="bg-card-foreground/5 rounded-xl p-4 space-y-4">
+                    <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                            {getAccountIcon(account.type)}
+                            <div>
+                                <h3 className="font-bold text-lg">{account.name}</h3>
+                                <p className="text-xs text-muted-foreground">Comisión: {(account.commission * 100).toFixed(0)}%</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(account)}>
+                                <Eye className="h-4 w-4"/>
+                           </Button>
+                        </div>
+                    </div>
+                    <Card className="bg-background/80 p-4 rounded-lg">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Saldo Disponible</p>
+                                <p className="text-2xl font-bold text-green-400">{formatCurrency(account.balance)}</p>
+                            </div>
+                            <Badge variant="secondary">{account.type}</Badge>
+                        </div>
+                    </Card>
+                </Card>
+            ))
+        ) : (
+            <Card className="flex items-center justify-center h-40">
+                <p className="text-muted-foreground">No tienes cuentas. ¡Agrega una para empezar!</p>
+            </Card>
+        )}
       </div>
 
       <Dialog
         open={isDialogOpen}
         onOpenChange={(open) => {
           setIsDialogOpen(open);
-          if (!open) {
-            setEditingAccount(null);
-          }
+          if (!open) setEditingAccount(null);
         }}
       >
         <DialogContent>

@@ -83,6 +83,7 @@ export interface Account {
     name: string;
     balance: number;
     commission: number;
+    type: 'Efectivo' | 'Digital' | 'Bancario';
 }
 
 export interface Reminder {

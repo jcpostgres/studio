@@ -14,6 +14,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Account } from "@/lib/types";
 
 const formSchema = z.object({
@@ -22,6 +29,9 @@ const formSchema = z.object({
   }),
   balance: z.coerce.number().default(0),
   commission: z.coerce.number().min(0).max(100).default(0),
+  type: z.enum(["Efectivo", "Digital", "Bancario"], {
+    required_error: "El tipo de cuenta es requerido.",
+  }),
 });
 
 type AccountFormValues = z.infer<typeof formSchema>;
@@ -38,6 +48,7 @@ export function AccountForm({ onSubmit, account }: AccountFormProps) {
       name: account?.name || "",
       balance: account?.balance || 0,
       commission: account ? account.commission * 100 : 0,
+      type: account?.type || "Bancario",
     },
   });
 
@@ -53,6 +64,28 @@ export function AccountForm({ onSubmit, account }: AccountFormProps) {
               <FormControl>
                 <Input placeholder="Ej. Efectivo (Caja)" {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="type"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de Cuenta</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un tipo" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Bancario">Bancario</SelectItem>
+                  <SelectItem value="Digital">Digital</SelectItem>
+                  <SelectItem value="Efectivo">Efectivo</SelectItem>
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
