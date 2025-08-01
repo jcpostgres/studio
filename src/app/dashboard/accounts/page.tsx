@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, DollarSign, ArrowDown, Wallet, Landmark, Eye } from "lucide-react";
+import { PlusCircle, DollarSign, ArrowDown, Wallet, Landmark, Eye, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { Account, Transaction } from "@/lib/types";
 import { db } from "@/lib/firebase";
@@ -201,6 +201,9 @@ export default function AccountsPage() {
                         <div className="flex items-center gap-2">
                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(account)}>
                                 <Eye className="h-4 w-4"/>
+                           </Button>
+                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDelete(account)}>
+                                <Trash2 className="h-4 w-4"/>
                            </Button>
                         </div>
                     </div>
