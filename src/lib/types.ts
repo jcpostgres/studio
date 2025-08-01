@@ -88,7 +88,7 @@ export interface Account {
 export interface Reminder {
     id: string;
     incomeId: string | null; // For income renewals
-    adminPaymentId?: string | null; // For administrative payments
+    adminPaymentId: string | null; // For administrative payments
     clientId: string;
     brandName: string;
     service: string;

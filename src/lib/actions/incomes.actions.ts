@@ -115,6 +115,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
             balance: currentBalance + amountWithCommission
         });
 
+        // THIS WAS THE MISSING LINE
         batch.set(docRef, finalIncomeDataObject);
     }
     
@@ -142,6 +143,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
             message: reminderMessage,
             timestamp: new Date().toISOString(),
             resolvedAt: null,
+            adminPaymentId: null,
         };
 
         const reminderRef = doc(db, `users/${userId}/reminders`, newIncomeId);
