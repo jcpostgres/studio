@@ -201,7 +201,7 @@ export function ExpenseForm() {
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" style={{ zIndex: 100 }}>
                   <Command>
-                    <CommandInput placeholder="Buscar categoría..." onValueChange={(currentValue) => form.setValue("category", currentValue, { shouldValidate: true })} defaultValue={field.value}/>
+                    <CommandInput placeholder="Buscar categoría..." onValueChange={(currentValue) => form.setValue("category", currentValue, { shouldValidate: true })} value={field.value}/>
                     <CommandList>
                       <CommandEmpty>No se encontró la categoría. Puedes crear una nueva.</CommandEmpty>
                       <CommandGroup>
