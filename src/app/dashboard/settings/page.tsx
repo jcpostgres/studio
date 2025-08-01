@@ -19,7 +19,7 @@ import {
   Moon,
   HelpCircle,
   LogOut,
-  Palette
+  FileCog
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -50,7 +50,7 @@ export default function SettingsPage() {
         {/* 1. User Profile */}
         <SettingsHeaderCard 
           user={userProfile} 
-          onEdit={() => {/* Placeholder for edit action */}} 
+          onEdit={() => alert('Próximamente: Editar Perfil')} 
         />
 
         {/* 2. Data Management */}
@@ -70,11 +70,11 @@ export default function SettingsPage() {
             onClick={() => handleNavigate('/dashboard/clients-debts')}
           />
           <SettingsItem
-            icon={<ArrowRightLeft className="text-indigo-500" />}
+            icon={<FileCog className="text-indigo-500" />}
             bgColor="bg-indigo-500/10"
-            title="Alivios / Retiros"
-            subtitle="Historial de movimientos"
-            onClick={() => handleNavigate('/dashboard/transactions')}
+            title="Pagos Administrativos"
+            subtitle="Servicios, alquileres y más"
+            onClick={() => handleNavigate('/dashboard/admin-payments')}
           />
         </SettingsCard>
         
@@ -92,7 +92,7 @@ export default function SettingsPage() {
             bgColor="bg-green-500/10"
             title="Categorías y Listas"
             subtitle="Personalizar opciones"
-            onClick={() => alert('Próximamente')}
+            isComingSoon
           />
         </SettingsCard>
 
@@ -143,7 +143,7 @@ export default function SettingsPage() {
             bgColor="bg-cyan-500/10"
             title="Ayuda y Soporte"
             subtitle="Preguntas frecuentes y contacto"
-            onClick={() => alert('Próximamente')}
+            isComingSoon
           />
           <SettingsItem
             icon={<LogOut className="text-red-500" />}
