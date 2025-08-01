@@ -140,23 +140,37 @@ export default function PayrollPage() {
 
     return (
         <>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                 <PageHeader title="Gestión de Nómina" description="Administra empleados y registra los pagos." />
-                <div className="flex gap-4">
-                     <Select value={`${selectedDate.month}-${selectedDate.year}`} onValueChange={handleDateChange} disabled={loading}>
-                        <SelectTrigger className="w-[180px]">
-                            <Calendar className="mr-2 h-4 w-4" />
-                            <SelectValue placeholder="Seleccionar Mes" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {availableDates.map(d => <SelectItem key={`${d.month}-${d.year}`} value={`${d.month}-${d.year}`}>{d.label}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                    <Button onClick={openNewEmployeeDialog}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Nuevo Empleado
-                    </Button>
-                </div>
+            <PageHeader
+              title="Gestión de Nómina"
+              description="Administra empleados y registra los pagos."
+            >
+              <Button onClick={openNewEmployeeDialog}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Nuevo Empleado
+              </Button>
+            </PageHeader>
+            
+            <div className="mt-4 flex justify-start">
+                <Select
+                  value={`${selectedDate.month}-${selectedDate.year}`}
+                  onValueChange={handleDateChange}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Seleccionar Mes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDates.map((d) => (
+                      <SelectItem
+                        key={`${d.month}-${d.year}`}
+                        value={`${d.month}-${d.year}`}
+                      >
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
             </div>
             
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
