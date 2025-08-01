@@ -8,9 +8,10 @@ import { PlusCircle, DollarSign, ArrowDown, Wallet, Landmark, Eye, Trash2 } from
 import { useAuth } from "@/context/auth-context";
 import { Account, Transaction } from "@/lib/types";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { AccountForm } from "@/components/accounts/account-form";
+import { saveAccount, deleteAccount } from "@/lib/actions/accounts.actions";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
@@ -82,19 +83,16 @@ export default function AccountsPage() {
 
   const confirmDelete = async () => {
     if (!userId || !accountToDelete) return;
-
-    try {
-      await deleteDoc(doc(db, `users/${userId}/accounts`, accountToDelete.id));
-      toast({ title: "Éxito", description: "Cuenta eliminada correctamente." });
-    } catch (error) {
-      console.error("Error deleting account:", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar la cuenta." });
-    } finally {
-      setIsAlertOpen(false);
-      setAccountToDelete(null);
+    const result = await deleteAccount({ userId, accountId: accountToDelete.id });
+    if (result.success) {
+        toast({ title: "Éxito", description: "Cuenta eliminada correctamente." });
+    } else {
+        toast({ variant: "destructive", title: "Error", description: result.message });
     }
+    setIsAlertOpen(false);
+    setAccountToDelete(null);
   };
-
+  
   const handleFormSubmit = async (values: {
     name: string;
     balance: number;
@@ -103,32 +101,23 @@ export default function AccountsPage() {
   }) => {
     if (!userId) return;
 
-    const accountData = {
-      name: values.name,
-      balance: values.balance,
-      commission: values.commission / 100,
-      type: values.type,
-    };
+    const result = await saveAccount({
+        userId,
+        accountData: {
+            name: values.name,
+            balance: values.balance,
+            commission: values.commission / 100,
+            type: values.type,
+        },
+        accountId: editingAccount?.id
+    });
 
-    try {
-      if (editingAccount) {
-        const accountDocRef = doc(db, `users/${userId}/accounts`, editingAccount.id);
-        await updateDoc(accountDocRef, {
-            name: accountData.name,
-            commission: accountData.commission,
-            type: accountData.type,
-        });
-        toast({ title: "Éxito", description: "Cuenta actualizada correctamente." });
-      } else {
-        const newAccountRef = doc(collection(db, `users/${userId}/accounts`));
-        await setDoc(newAccountRef, { ...accountData, id: newAccountRef.id });
-        toast({ title: "Éxito", description: "Cuenta creada correctamente." });
-      }
-      setIsDialogOpen(false);
-      setEditingAccount(null);
-    } catch (error) {
-      console.error("Error saving account:", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la cuenta." });
+    if (result.success) {
+        toast({ title: "Éxito", description: result.message });
+        setIsDialogOpen(false);
+        setEditingAccount(null);
+    } else {
+        toast({ variant: "destructive", title: "Error", description: result.message });
     }
   };
 
