@@ -62,8 +62,18 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
         } : {
             conceptName: "",
             providerName: "",
+            contractNumber: "",
+            referenceNumber: "",
+            providerId: "",
+            paymentAmount: undefined,
             paymentCurrency: "USD",
             category: "Otros",
+            paymentDueDate: "",
+            renewalDate: "",
+            paymentMethod: "",
+            beneficiaryBank: "",
+            beneficiaryAccountNumber: "",
+            notes: "",
         },
     });
 
@@ -113,13 +123,13 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
                                 <FormItem><FormLabel>Nombre del Proveedor</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                             )}/>
                             <FormField control={form.control} name="contractNumber" render={({ field }) => (
-                                <FormItem><FormLabel>Nº Contrato/Cuenta/Póliza (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormLabel>Nº Contrato/Cuenta/Póliza (Opcional)</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
                             )}/>
                             <FormField control={form.control} name="referenceNumber" render={({ field }) => (
-                                <FormItem><FormLabel>Nº Referencia/NIC (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormLabel>Nº Referencia/NIC (Opcional)</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
                             )}/>
                              <FormField control={form.control} name="providerId" render={({ field }) => (
-                                <FormItem><FormLabel>RIF/C.I. del Proveedor (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormLabel>RIF/C.I. del Proveedor (Opcional)</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
                             )}/>
                         </AccordionContent>
                     </AccordionItem>
@@ -130,7 +140,7 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
                         <AccordionContent className="space-y-4">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <FormField control={form.control} name="paymentAmount" render={({ field }) => (
-                                    <FormItem><FormLabel>Monto de Pago</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
+                                    <FormItem><FormLabel>Monto de Pago</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} /></FormControl><FormMessage /></FormItem>
                                 )}/>
                                 <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
                                     <FormItem><FormLabel>Frecuencia de Pago</FormLabel>
@@ -156,7 +166,7 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
                                     <FormItem><FormLabel>Fecha de Renovación</FormLabel><FormControl><Input type="date" {...field} value={field.value || ""} /></FormControl><FormMessage /></FormItem>
                                 )}/>
                                 <FormField control={form.control} name="paymentMethod" render={({ field }) => (
-                                    <FormItem><FormLabel>Método de Pago Preferido</FormLabel><FormControl><Input placeholder="Ej. Transferencia Banesco" {...field} /></FormControl><FormMessage /></FormItem>
+                                    <FormItem><FormLabel>Método de Pago Preferido</FormLabel><FormControl><Input placeholder="Ej. Transferencia Banesco" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
                                 )}/>
                              </div>
                         </AccordionContent>
@@ -167,10 +177,10 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
                         <AccordionTrigger>Datos Bancarios del Beneficiario (Opcional)</AccordionTrigger>
                         <AccordionContent className="space-y-4">
                             <FormField control={form.control} name="beneficiaryBank" render={({ field }) => (
-                                <FormItem><FormLabel>Banco del Beneficiario</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormLabel>Banco del Beneficiario</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
                             )}/>
                              <FormField control={form.control} name="beneficiaryAccountNumber" render={({ field }) => (
-                                <FormItem><FormLabel>Número de Cuenta</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormLabel>Número de Cuenta</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
                             )}/>
                              <FormField control={form.control} name="beneficiaryAccountType" render={({ field }) => (
                                 <FormItem><FormLabel>Tipo de Cuenta</FormLabel>
@@ -190,7 +200,7 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
                         <AccordionTrigger>Notas Adicionales (Opcional)</AccordionTrigger>
                         <AccordionContent>
                              <FormField control={form.control} name="notes" render={({ field }) => (
-                                <FormItem><FormLabel>Observaciones</FormLabel><FormControl><Textarea rows={4} {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormLabel>Observaciones</FormLabel><FormControl><Textarea rows={4} {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
                             )}/>
                         </AccordionContent>
                     </AccordionItem>

@@ -43,7 +43,8 @@ export async function saveAdminPayment({ userId, paymentData, paymentId }: SaveA
             ? doc(db, `users/${userId}/adminPayments`, paymentId)
             : doc(collection(db, `users/${userId}/adminPayments`));
 
-        const existingData = paymentId ? (await getDoc(docRef)).data() : {};
+        const existingDataSnap = paymentId ? await getDoc(docRef) : null;
+        const existingData = existingDataSnap?.data();
 
         const dataToSave: Omit<AdminPayment, 'id'> = {
             ...validatedData,
@@ -56,9 +57,9 @@ export async function saveAdminPayment({ userId, paymentData, paymentId }: SaveA
         batch.set(docRef, dataToSave, { merge: true });
 
         // --- REMINDER LOGIC ---
+        const reminderRef = doc(db, `users/${userId}/reminders`, docRef.id);
         if (dataToSave.paymentDueDate) {
             const reminderMessage = `Recordatorio de Pago: ${dataToSave.conceptName} vence el ${dataToSave.paymentDueDate}.`;
-            const reminderRef = doc(db, `users/${userId}/reminders`, docRef.id);
             const reminderData: Omit<Reminder, 'id'> = {
                 incomeId: null,
                 adminPaymentId: docRef.id,
@@ -76,13 +77,10 @@ export async function saveAdminPayment({ userId, paymentData, paymentId }: SaveA
             };
             batch.set(reminderRef, reminderData, { merge: true });
         } else {
-             // If due date was removed, delete the reminder
-             if (paymentId) {
-                const reminderRef = doc(db, `users/${userId}/reminders`, paymentId);
-                const reminderSnap = await getDoc(reminderRef);
-                if (reminderSnap.exists()) {
-                    batch.delete(reminderRef);
-                }
+             // If due date was removed or is not present, delete the associated reminder
+            const reminderSnap = await getDoc(reminderRef);
+            if (reminderSnap.exists()) {
+                batch.delete(reminderRef);
             }
         }
         
