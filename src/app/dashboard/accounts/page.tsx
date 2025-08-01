@@ -202,7 +202,7 @@ export default function AccountsPage() {
                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(account)}>
                                 <Eye className="h-4 w-4"/>
                            </Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDelete(account)}>
+                           <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDelete(account)}>
                                 <Trash2 className="h-4 w-4"/>
                            </Button>
                         </div>
