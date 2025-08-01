@@ -63,6 +63,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     resolver: zodResolver(formSchema),
     defaultValues: incomeToEdit ? {
       ...incomeToEdit,
+      date: incomeToEdit.date ? new Date(incomeToEdit.date).toISOString().split('T')[0] : "",
       services: incomeToEdit.servicesDetails.map(s => s.name),
       dueDate: incomeToEdit.dueDate ? new Date(incomeToEdit.dueDate).toISOString().split('T')[0] : "",
     } : {
@@ -171,8 +172,8 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField control={form.control} name="date" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Fecha</FormLabel>
@@ -236,7 +237,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
                 name={`servicesDetails.${index}.amount`}
                 render={({ field: formField }) => (
                 <FormItem>
-                    <FormLabel>Costo {watchedServicesDetails[index]?.name}</FormLabel>
+                    <FormLabel>Costo {field.name}</FormLabel>
                     <FormControl>
                     <Input type="number" step="0.01" placeholder="0.00" {...formField} />
                     </FormControl>
@@ -257,7 +258,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
             </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField control={form.control} name="amountPaid" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Monto Pagado</FormLabel>
@@ -340,3 +341,5 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     </Form>
   );
 }
+
+    
