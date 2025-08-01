@@ -148,6 +148,12 @@ export default function AccountsPage() {
     }
   };
 
+  const getBalanceColor = (balance: number) => {
+    if (balance > 0) return "text-green-400";
+    if (balance < 0) return "text-red-400";
+    return "text-muted-foreground";
+  };
+
 
   return (
     <>
@@ -202,7 +208,9 @@ export default function AccountsPage() {
                         <div className="flex justify-between items-center">
                             <div>
                                 <p className="text-sm text-muted-foreground">Saldo Disponible</p>
-                                <p className="text-2xl font-bold text-green-400">{formatCurrency(account.balance)}</p>
+                                <p className={`text-2xl font-bold ${getBalanceColor(account.balance)}`}>
+                                    {formatCurrency(account.balance)}
+                                </p>
                             </div>
                             <Badge variant="secondary">{account.type}</Badge>
                         </div>
