@@ -144,9 +144,8 @@ export default function PayrollPage() {
               title="Gestión de Nómina"
               description="Administra empleados y registra los pagos."
             >
-              <Button onClick={openNewEmployeeDialog}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Nuevo Empleado
+              <Button onClick={openNewEmployeeDialog} size="icon" className="rounded-full h-10 w-10">
+                <PlusCircle className="h-5 w-5" />
               </Button>
             </PageHeader>
             
