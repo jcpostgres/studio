@@ -8,11 +8,12 @@ import * as z from "zod";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Employee } from "@/lib/types";
-import { saveEmployee } from "@/lib/actions/payroll.actions";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, collection } from "firebase/firestore";
 
 const formSchema = z.object({
     name: z.string().min(2, "El nombre es requerido."),
@@ -56,20 +57,26 @@ export function EmployeeForm({ employeeToEdit, onSuccess }: EmployeeFormProps) {
         }
         setIsSubmitting(true);
         
-        const result = await saveEmployee({
-            userId,
-            employeeData: values,
-            employeeId: employeeToEdit?.id,
-        });
+        try {
+            const docRef = employeeToEdit
+                ? doc(db, `users/${userId}/employees`, employeeToEdit.id)
+                : doc(collection(db, `users/${userId}/employees`));
 
-        if (result.success) {
-            toast({ title: "Éxito", description: result.message });
+            const dataToSave: Omit<Employee, 'id'> = {
+                ...values,
+                monthlySalary: values.biWeeklySalary * 2,
+            };
+
+            await setDoc(docRef, dataToSave, { merge: true });
+            
+            toast({ title: "Éxito", description: employeeToEdit ? "Empleado actualizado." : "Empleado creado." });
             onSuccess();
-        } else {
-            toast({ variant: "destructive", title: "Error al guardar", description: result.message });
+        } catch (error) {
+            console.error("Error saving employee:", error);
+            toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo guardar el empleado." });
+        } finally {
+            setIsSubmitting(false);
         }
-        
-        setIsSubmitting(false);
     }
     
     return (
@@ -104,3 +111,5 @@ export function EmployeeForm({ employeeToEdit, onSuccess }: EmployeeFormProps) {
         </Form>
     );
 }
+
+    

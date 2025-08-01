@@ -4,21 +4,19 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
-import type { Employee, PayrollPayment, Account } from "@/lib/types";
+import { collection, onSnapshot, doc, deleteDoc, writeBatch, query, where, getDocs } from "firebase/firestore";
+import type { Employee, PayrollPayment, Account, Expense } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, Calendar, CheckCircle, XCircle, DollarSign, Banknote } from "lucide-react";
-import { deleteEmployee } from "@/lib/actions/payroll.actions";
+import { PlusCircle, Edit, Trash2, Calendar, CheckCircle, XCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmployeeForm } from "@/components/payroll/employee-form";
 import { PayrollPaymentForm } from "@/components/payroll/payroll-payment-form";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 
 export default function PayrollPage() {
     const { userId } = useAuth();
@@ -38,7 +36,7 @@ export default function PayrollPage() {
     const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-    const [paymentContext, setPaymentContext] = useState<{ employee: Employee, paymentType: '4th' | '19th' } | null>(null);
+    const [paymentContext, setPaymentContext] = useState<{ employee: Employee, paymentType: '4th' | '20th' } | null>(null);
 
     // Alert dialog states
     const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -65,7 +63,7 @@ export default function PayrollPage() {
     }, [userId]);
     
     const employeePaymentStatus = useMemo(() => {
-        const statusMap = new Map<string, { payment4th: boolean, payment19th: boolean }>();
+        const statusMap = new Map<string, { payment4th: boolean, payment20th: boolean }>();
         employees.forEach(emp => {
             const empPayments = payments.filter(p => 
                 p.employeeId === emp.id && 
@@ -74,7 +72,7 @@ export default function PayrollPage() {
             );
             statusMap.set(emp.id, {
                 payment4th: empPayments.some(p => p.paymentType === '4th'),
-                payment19th: empPayments.some(p => p.paymentType === '19th'),
+                payment20th: empPayments.some(p => p.paymentType === '20th'),
             });
         });
         return statusMap;
@@ -108,11 +106,21 @@ export default function PayrollPage() {
 
     const confirmDeleteEmployee = async () => {
         if (!userId || !employeeToDelete) return;
-        const result = await deleteEmployee({ userId, employeeId: employeeToDelete.id });
-        if (result.success) {
-            toast({ title: "Éxito", description: "Empleado eliminado correctamente." });
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.message });
+        try {
+            const batch = writeBatch(db);
+            
+            const employeeRef = doc(db, `users/${userId}/employees`, employeeToDelete.id);
+            batch.delete(employeeRef);
+
+            const paymentsQuery = query(collection(db, `users/${userId}/payrollPayments`), where("employeeId", "==", employeeToDelete.id));
+            const paymentsSnap = await getDocs(paymentsQuery);
+            paymentsSnap.forEach(paymentDoc => batch.delete(paymentDoc.ref));
+
+            await batch.commit();
+            toast({ title: "Éxito", description: "Empleado y sus pagos han sido eliminados." });
+        } catch (error) {
+            console.error("Error deleting employee:", error);
+            toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar al empleado." });
         }
         setIsAlertOpen(false);
         setEmployeeToDelete(null);
@@ -123,7 +131,7 @@ export default function PayrollPage() {
         setIsEmployeeDialogOpen(true);
     };
     
-    const handleRegisterPayment = (employee: Employee, paymentType: '4th' | '19th') => {
+    const handleRegisterPayment = (employee: Employee, paymentType: '4th' | '20th') => {
         setPaymentContext({ employee, paymentType });
         setIsPaymentDialogOpen(true);
     };
@@ -156,7 +164,7 @@ export default function PayrollPage() {
                     [...Array(3)].map((_, i) => <Skeleton key={i} className="h-64 w-full rounded-xl" />)
                 ) : employees.length > 0 ? (
                     employees.map(employee => {
-                        const status = employeePaymentStatus.get(employee.id) || { payment4th: false, payment19th: false };
+                        const status = employeePaymentStatus.get(employee.id) || { payment4th: false, payment20th: false };
                         return (
                             <Card key={employee.id} className="p-4 bg-card-foreground/5 rounded-xl flex flex-col justify-between">
                                 <div>
@@ -193,11 +201,11 @@ export default function PayrollPage() {
                                         </div>
                                          <div className="flex justify-between items-center p-2 bg-background/50 rounded-lg">
                                             <div className="flex items-center gap-2">
-                                                 {status.payment19th ? <CheckCircle className="h-5 w-5 text-green-400"/> : <XCircle className="h-5 w-5 text-yellow-400"/>}
-                                                <span>Pago Día 19</span>
+                                                 {status.payment20th ? <CheckCircle className="h-5 w-5 text-green-400"/> : <XCircle className="h-5 w-5 text-yellow-400"/>}
+                                                <span>Pago Día 20</span>
                                             </div>
-                                            <Button size="sm" variant={status.payment19th ? "outline" : "default"} disabled={status.payment19th} onClick={() => handleRegisterPayment(employee, '19th')}>
-                                                {status.payment19th ? "Pagado" : "Pagar"}
+                                            <Button size="sm" variant={status.payment20th ? "outline" : "default"} disabled={status.payment20th} onClick={() => handleRegisterPayment(employee, '20th')}>
+                                                {status.payment20th ? "Pagado" : "Pagar"}
                                             </Button>
                                         </div>
                                     </div>
@@ -267,3 +275,5 @@ export default function PayrollPage() {
         </>
     );
 }
+
+    

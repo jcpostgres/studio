@@ -7,14 +7,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { Employee, Account } from "@/lib/types";
-import { savePayrollPayment } from "@/lib/actions/payroll.actions";
+import { Employee, Account, PayrollPayment, Expense } from "@/lib/types";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { doc, collection, writeBatch, getDoc } from "firebase/firestore";
 
 const formSchema = z.object({
     date: z.string().min(1, "La fecha es requerida."),
@@ -27,7 +28,7 @@ type PayrollPaymentFormValues = z.infer<typeof formSchema>;
 
 interface PayrollPaymentFormProps {
     employee: Employee;
-    paymentType: '4th' | '19th';
+    paymentType: '4th' | '20th';
     selectedDate: { month: number; year: number };
     accounts: Account[];
     onSuccess: () => void;
@@ -55,24 +56,58 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
         }
         setIsSubmitting(true);
         
-        const result = await savePayrollPayment({
-            userId,
-            paymentData: values,
-            employeeId: employee.id,
-            employeeName: employee.name,
-            paymentType,
-            month: selectedDate.month,
-            year: selectedDate.year,
-        });
+        try {
+            const batch = writeBatch(db);
 
-        if (result.success) {
-            toast({ title: "Éxito", description: result.message });
+            // 1. Create Payroll Payment Record
+            const paymentRef = doc(collection(db, `users/${userId}/payrollPayments`));
+            const paymentToSave: Omit<PayrollPayment, 'id'> = {
+                employeeId: employee.id,
+                employeeName: employee.name,
+                paymentType,
+                month: selectedDate.month,
+                year: selectedDate.year,
+                totalAmount: values.totalAmount,
+                date: values.date,
+                observations: values.observations || "",
+                timestamp: new Date().toISOString(),
+                paymentAccount: values.paymentAccount,
+            };
+            batch.set(paymentRef, paymentToSave);
+
+            // 2. Create corresponding Expense record
+            const expenseRef = doc(collection(db, `users/${userId}/expenses`));
+            const expenseToSave: Omit<Expense, 'id'> = {
+                date: values.date,
+                type: 'fijo',
+                category: 'Nómina',
+                amount: values.totalAmount,
+                paymentAccount: values.paymentAccount,
+                responsible: 'Sistema',
+                observations: `Pago de nómina a ${employee.name}. Ref: ${paymentRef.id}`,
+                timestamp: new Date().toISOString(),
+            };
+            batch.set(expenseRef, expenseToSave);
+
+            // 3. Update Account Balance
+            const accountRef = doc(db, `users/${userId}/accounts`, values.paymentAccount);
+            const accountSnap = await getDoc(accountRef);
+            if (!accountSnap.exists()) {
+                throw new Error("La cuenta de pago no existe.");
+            }
+            const newBalance = accountSnap.data().balance - values.totalAmount;
+            batch.update(accountRef, { balance: newBalance });
+
+            await batch.commit();
+
+            toast({ title: "Éxito", description: "Pago de nómina registrado como gasto exitosamente." });
             onSuccess();
-        } else {
-            toast({ variant: "destructive", title: "Error al guardar", description: result.message });
+        } catch (error) {
+            console.error("Error saving payroll payment:", error);
+            toast({ variant: "destructive", title: "Error", description: "No se pudo registrar el pago." });
+        } finally {
+            setIsSubmitting(false);
         }
-        
-        setIsSubmitting(false);
     }
     
     return (
@@ -108,3 +143,5 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
         </Form>
     );
 }
+
+    
