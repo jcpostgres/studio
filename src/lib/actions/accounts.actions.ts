@@ -1,10 +1,9 @@
 
 "use server";
 
-import { doc, setDoc, updateDoc, deleteDoc, collection, writeBatch } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteDoc, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { z } from "zod";
-import type { Account } from "@/lib/types";
 
 const accountActionSchema = z.object({
   name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }),
