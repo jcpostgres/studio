@@ -174,12 +174,12 @@ export default function PayrollPage() {
             
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                  {loading ? (
-                    [...Array(2)].map((_, i) => <Skeleton key={i} className="h-72 w-full rounded-xl" />)
+                    [...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
                 ) : employees.length > 0 ? (
                     employees.map(employee => {
                         const status = employeePaymentStatus.get(employee.id) || { payment4th: false, payment20th: false };
                         return (
-                            <Card key={employee.id} className="p-4 bg-card-foreground/5 rounded-xl flex flex-col justify-between">
+                            <Card key={employee.id} className="p-4 bg-card-foreground/5 rounded-xl flex flex-col">
                                 <div>
                                     <div className="flex justify-between items-start">
                                         <h3 className="font-bold text-lg text-cyan-400">{employee.name}</h3>
@@ -190,20 +190,15 @@ export default function PayrollPage() {
                                     </div>
                                     <p className="text-sm text-muted-foreground">{employee.paymentMethod}: {employee.bank}</p>
                                     
-                                    <div className="my-4 grid grid-cols-2 gap-4 text-center">
-                                        <div className="p-2 bg-background/50 rounded-lg">
-                                            <p className="text-xs text-muted-foreground">Sueldo Quincenal</p>
-                                            <p className="font-semibold">{formatCurrency(employee.biWeeklySalary)}</p>
-                                        </div>
+                                    <div className="my-2 text-center">
                                         <div className="p-2 bg-background/50 rounded-lg">
                                             <p className="text-xs text-muted-foreground">Sueldo Mensual</p>
                                             <p className="font-semibold">{formatCurrency(employee.monthlySalary)}</p>
                                         </div>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <h4 className="font-semibold text-sm">Pagos del Mes</h4>
-                                        <div className="flex justify-between items-center p-2 bg-background/50 rounded-lg">
+                                    <div className="space-y-2 mt-4">
+                                        <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-2">
                                                 {status.payment4th ? <CheckCircle className="h-5 w-5 text-green-400"/> : <XCircle className="h-5 w-5 text-yellow-400"/>}
                                                 <span>Pago Día 4</span>
@@ -212,7 +207,7 @@ export default function PayrollPage() {
                                                {status.payment4th ? "Pagado" : "Pagar"}
                                             </Button>
                                         </div>
-                                         <div className="flex justify-between items-center p-2 bg-background/50 rounded-lg">
+                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-2">
                                                  {status.payment20th ? <CheckCircle className="h-5 w-5 text-green-400"/> : <XCircle className="h-5 w-5 text-yellow-400"/>}
                                                 <span>Pago Día 20</span>
@@ -221,7 +216,7 @@ export default function PayrollPage() {
                                                 {status.payment20th ? "Pagado" : "Pagar"}
                                             </Button>
                                         </div>
-                                        <div className="flex justify-between items-center p-2 bg-background/50 rounded-lg">
+                                        <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-2">
                                                 <Award className="h-5 w-5 text-yellow-400"/>
                                                 <span>Bono Adicional</span>
@@ -236,7 +231,7 @@ export default function PayrollPage() {
                         )
                     })
                 ) : (
-                    <Card className="md:col-span-2 lg:col-span-3 flex items-center justify-center h-40">
+                    <Card className="md:col-span-2 flex items-center justify-center h-40">
                         <p className="text-muted-foreground">No tienes empleados. ¡Agrega uno para empezar!</p>
                     </Card>
                 )}
