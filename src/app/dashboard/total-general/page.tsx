@@ -5,12 +5,14 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
-import type { Income, Expense, Account } from "@/lib/types";
+import type { Income, Expense, Transaction } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, DollarSign, Minus, Calendar } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 
 export default function TotalGeneralPage() {
     const { userId } = useAuth();
@@ -18,10 +20,9 @@ export default function TotalGeneralPage() {
     
     const [allIncomes, setAllIncomes] = useState<Income[]>([]);
     const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
-    const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
-    const [filterMonth, setFilterMonth] = useState<string>('all');
 
     useEffect(() => {
         if (!userId || !db) return;
@@ -33,15 +34,15 @@ export default function TotalGeneralPage() {
         const unsubExpenses = onSnapshot(collection(db, `users/${userId}/expenses`), (snap) => 
             setAllExpenses(snap.docs.map(doc => ({...doc.data(), id: doc.id} as Expense)))
         );
-        const unsubAccounts = onSnapshot(collection(db, `users/${userId}/accounts`), (snap) => {
-            setAllAccounts(snap.docs.map(doc => ({...doc.data(), id: doc.id} as Account)));
+        const unsubTransactions = onSnapshot(collection(db, `users/${userId}/transactions`), (snap) => {
+            setAllTransactions(snap.docs.map(doc => ({...doc.data(), id: doc.id} as Transaction)));
             setLoading(false);
         });
 
         return () => {
             unsubIncomes();
             unsubExpenses();
-            unsubAccounts();
+            unsubTransactions();
         };
 
     }, [userId]);
@@ -49,205 +50,158 @@ export default function TotalGeneralPage() {
     const filteredData = useMemo(() => {
         const parseDate = (dateString: string) => new Date(`${dateString}T00:00:00`);
 
-        const incomes = allIncomes.filter(inc => {
-            const date = parseDate(inc.date);
-            const matchesYear = date.getFullYear().toString() === filterYear;
-            const matchesMonth = filterMonth === 'all' || date.getMonth().toString() === filterMonth;
-            return matchesYear && matchesMonth;
-        });
+        const getFilteredItems = <T extends { date: string }>(items: T[]) => {
+            return items.filter(item => {
+                const date = parseDate(item.date);
+                return date.getFullYear().toString() === filterYear;
+            });
+        };
 
-        const expenses = allExpenses.filter(exp => {
-            const date = parseDate(exp.date);
-            const matchesYear = date.getFullYear().toString() === filterYear;
-            const matchesMonth = filterMonth === 'all' || date.getMonth().toString() === filterMonth;
-            return matchesYear && matchesMonth;
-        });
+        return { 
+            incomes: getFilteredItems(allIncomes), 
+            expenses: getFilteredItems(allExpenses),
+            transactions: getFilteredItems(allTransactions)
+        };
 
-        return { incomes, expenses };
-
-    }, [allIncomes, allExpenses, filterYear, filterMonth]);
+    }, [allIncomes, allExpenses, allTransactions, filterYear]);
     
-    const summary = useMemo(() => {
+    const annualSummary = useMemo(() => {
         const totalIncome = filteredData.incomes.reduce((sum, inc) => sum + (inc.amountWithCommission || 0), 0);
         const totalExpense = filteredData.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+        const totalWithdrawals = filteredData.transactions.filter(t => t.type === 'withdrawal').reduce((sum, t) => sum + t.amount, 0);
         const netUtility = totalIncome - totalExpense;
-        return { totalIncome, totalExpense, netUtility };
+        const finalCashFlow = netUtility - totalWithdrawals;
+
+        return { totalIncome, totalExpense, totalWithdrawals, netUtility, finalCashFlow };
+    }, [filteredData]);
+    
+    const monthlyBreakdown = useMemo(() => {
+        const breakdown = Array.from({ length: 12 }, (_, i) => ({
+            month: i,
+            monthName: new Date(0, i).toLocaleString('es-ES', { month: 'long' }),
+            income: 0,
+            expense: 0,
+            utility: 0,
+        }));
+        
+        const parseDate = (dateString: string) => new Date(`${dateString}T00:00:00`);
+
+        filteredData.incomes.forEach(inc => {
+            const month = parseDate(inc.date).getMonth();
+            breakdown[month].income += (inc.amountWithCommission || 0);
+        });
+        
+        filteredData.expenses.forEach(exp => {
+            const month = parseDate(exp.date).getMonth();
+            breakdown[month].expense += exp.amount;
+        });
+
+        breakdown.forEach(monthData => {
+            monthData.utility = monthData.income - monthData.expense;
+        });
+
+        return breakdown;
+
     }, [filteredData]);
 
-    const incomeDetails = useMemo(() => {
-        const topClients = filteredData.incomes.reduce((acc, inc) => {
-            acc[inc.client] = (acc[inc.client] || 0) + inc.amountPaid;
-            return acc;
-        }, {} as Record<string, number>);
-
-        const topServices = filteredData.incomes.flatMap(i => i.servicesDetails).reduce((acc, s) => {
-            acc[s.name] = (acc[s.name] || 0) + s.amount;
-            return acc;
-        }, {} as Record<string, number>);
-
-        return {
-            topClients: Object.entries(topClients).sort(([,a],[,b]) => b - a).slice(0, 5),
-            topServices: Object.entries(topServices).sort(([,a],[,b]) => b - a).slice(0, 5),
-        };
-    }, [filteredData.incomes]);
-
-    const expenseDetails = useMemo(() => {
-        const topCategories = filteredData.expenses.reduce((acc, exp) => {
-            acc[exp.category] = (acc[exp.category] || 0) + exp.amount;
-            return acc;
-        }, {} as Record<string, number>);
-
-        return {
-            topCategories: Object.entries(topCategories).sort(([,a],[,b]) => b - a).slice(0, 5),
-        }
-    }, [filteredData.expenses]);
 
     const availableYears = useMemo(() => {
         const years = new Set([
             ...allIncomes.map(inc => new Date(inc.date).getFullYear().toString()),
-            ...allExpenses.map(exp => new Date(exp.date).getFullYear().toString())
+            ...allExpenses.map(exp => new Date(exp.date).getFullYear().toString()),
+            ...allTransactions.map(t => new Date(t.date).getFullYear().toString()),
         ]);
         const currentYear = new Date().getFullYear().toString();
         if (!years.has(currentYear)) { years.add(currentYear); }
         return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
-    }, [allIncomes, allExpenses]);
+    }, [allIncomes, allExpenses, allTransactions]);
 
-    const months = [
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
+    const formatCurrency = (amount: number) => new Intl.NumberFormat("es-VE", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 
-    const formatCurrency = (amount: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
-
-    const renderMetricCard = (title: string, value: number, colorClass: string) => (
-        <Card className="flex flex-col justify-center p-6">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-            <p className={`text-3xl font-bold ${colorClass}`}>{formatCurrency(value)}</p>
+    const MetricCard = ({ title, value, icon, colorClass, loading }: { title: string, value: number, icon: React.ReactNode, colorClass: string, loading: boolean }) => (
+        <Card className="bg-card-foreground/5 p-4 rounded-xl flex-1">
+             {loading ? <Skeleton className="h-24 w-full" /> : 
+                <div className="flex flex-col items-center justify-center gap-2 text-center">
+                    <div className={`flex items-center justify-center h-12 w-12 rounded-full ${colorClass}/20 text-${colorClass}`}>
+                        {icon}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{title}</p>
+                    <p className={`text-2xl font-bold text-${colorClass}`}>{formatCurrency(value)}</p>
+                </div>
+            }
         </Card>
-    );
-
-    const renderDetailList = (title: string, data: [string, number][]) => (
-        <div className="space-y-2">
-            <h4 className="font-semibold text-muted-foreground">{title}</h4>
-            {data.length > 0 ? (
-                <ul className="space-y-1 text-sm">
-                    {data.map(([name, value]) => (
-                        <li key={name} className="flex justify-between items-center">
-                            <span>{name}</span>
-                            <span className="font-mono text-foreground">{formatCurrency(value)}</span>
-                        </li>
-                    ))}
-                </ul>
-            ) : <p className="text-sm text-muted-foreground">No hay datos para mostrar.</p>}
-        </div>
     );
 
     if (loading) {
         return (
             <div className="space-y-6">
                 <PageHeader title="Total General" description="Cargando resumen financiero completo..." />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <Skeleton className="h-12 w-full" />
-                     <Skeleton className="h-12 w-full" />
-                </div>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Skeleton className="h-10 w-32" />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Skeleton className="h-32 w-full" />
                     <Skeleton className="h-32 w-full" />
                     <Skeleton className="h-32 w-full" />
                     <Skeleton className="h-32 w-full" />
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <Skeleton className="h-64 w-full" />
-                    <Skeleton className="h-64 w-full" />
-                    <Skeleton className="h-64 w-full" />
-                </div>
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-64 w-full" />
             </div>
         );
     }
     
     return (
         <div className="space-y-8">
-            <PageHeader title="Total General" description="Consulta un resumen financiero completo." />
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Filtros</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select value={filterYear} onValueChange={setFilterYear}>
-                        <SelectTrigger><SelectValue placeholder="Seleccionar Año" /></SelectTrigger>
-                        <SelectContent>
-                            {availableYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                    <Select value={filterMonth} onValueChange={setFilterMonth}>
-                        <SelectTrigger><SelectValue placeholder="Seleccionar Mes" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todo el Año</SelectItem>
-                            {months.map((month, index) => <SelectItem key={index} value={index.toString()}>{month}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </CardContent>
-            </Card>
-
-            {/* General Summary */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Resumen del Período</CardTitle>
-                    <CardDescription>
-                        Resultados para {filterMonth === 'all' ? `el año ${filterYear}` : `${months[parseInt(filterMonth)]} de ${filterYear}`}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {renderMetricCard("Ingresos Totales", summary.totalIncome, "text-green-400")}
-                    {renderMetricCard("Gastos Totales", summary.totalExpense, "text-red-400")}
-                    {renderMetricCard("Utilidad Neta", summary.netUtility, "text-cyan-400")}
-                </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                 {/* Income Details */}
-                <Card className="lg:col-span-1">
-                    <CardHeader>
-                        <CardTitle>Detalle de Ingresos</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {renderDetailList("Top 5 Clientes", incomeDetails.topClients)}
-                         <hr className="border-border" />
-                        {renderDetailList("Top 5 Servicios", incomeDetails.topServices)}
-                    </CardContent>
-                </Card>
-
-                 {/* Expense & Accounts Details */}
-                <div className="lg:col-span-2 space-y-8">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Detalle de Gastos</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {renderDetailList("Top 5 Categorías de Gastos", expenseDetails.topCategories)}
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Saldos de Cuentas</CardTitle>
-                            <CardDescription>Balance actual de todas tus cuentas.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                           <ul className="space-y-2">
-                                {allAccounts.map(account => (
-                                    <li key={account.id} className="flex justify-between items-center text-sm p-2 rounded-md bg-card-foreground/5">
-                                        <div>
-                                            <span className="font-medium">{account.name}</span>
-                                            <Badge variant="secondary" className="ml-2">Comisión: {(account.commission * 100).toFixed(0)}%</Badge>
-                                        </div>
-                                        <span className="font-mono font-semibold text-lg text-primary">{formatCurrency(account.balance)}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </CardContent>
-                    </Card>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                 <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Total General</h1>
+                    <p className="text-muted-foreground">Resumen Anual {filterYear}</p>
                 </div>
+                <Select value={filterYear} onValueChange={setFilterYear}>
+                    <SelectTrigger className="w-[120px]">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        <SelectValue placeholder="Año" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {availableYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <MetricCard title="Ingresos Totales" value={annualSummary.totalIncome} icon={<TrendingUp size={24} />} colorClass="green-400" loading={loading} />
+                <MetricCard title="Gastos Totales" value={annualSummary.totalExpense} icon={<TrendingDown size={24} />} colorClass="red-400" loading={loading} />
+                <MetricCard title="Utilidad Neta" value={annualSummary.netUtility} icon={<DollarSign size={24} />} colorClass="cyan-400" loading={loading} />
+                <MetricCard title="Retiros/Alivios" value={annualSummary.totalWithdrawals} icon={<Minus size={24} />} colorClass="yellow-400" loading={loading} />
+            </div>
+
+             <Card className="bg-card-foreground/5 p-6 rounded-xl text-center">
+                <p className="text-sm text-muted-foreground">Flujo de Caja Final</p>
+                <p className="text-4xl font-bold text-green-400">{formatCurrency(annualSummary.finalCashFlow)}</p>
+            </Card>
+
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight mb-4">Desglose Mensual</h2>
+                 <div className="bg-card-foreground/5 rounded-xl p-2 space-y-1">
+                    <div className="grid grid-cols-4 gap-2 px-4 py-2 font-semibold text-muted-foreground">
+                        <div className="text-left">Mes</div>
+                        <div className="text-right">Ingresos</div>
+                        <div className="text-right">Gastos</div>
+                        <div className="text-right">Utilidad</div>
+                    </div>
+                     {monthlyBreakdown.map((month) => (
+                        (month.income > 0 || month.expense > 0) && (
+                            <div key={month.month} className="grid grid-cols-4 gap-2 px-4 py-3 bg-card/50 rounded-lg items-center">
+                                <div className="text-left font-medium capitalize">{month.monthName}</div>
+                                <div className="text-right text-green-400">{formatCurrency(month.income)}</div>
+                                <div className="text-right text-red-400">{formatCurrency(month.expense)}</div>
+                                <div className={`text-right font-semibold ${month.utility >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>{formatCurrency(month.utility)}</div>
+                            </div>
+                        )
+                    ))}
+                 </div>
             </div>
         </div>
     );
 }
+
+    
