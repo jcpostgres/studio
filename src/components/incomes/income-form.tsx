@@ -159,9 +159,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
         const accountRef = doc(db, `users/${userId}/accounts`, values.paymentAccount);
         const accountSnap = await getDoc(accountRef);
         if (!accountSnap.exists()) {
-            toast({ variant: "destructive", title: "Error", description: "La cuenta de pago no existe." });
-            setIsSubmitting(false);
-            return;
+            throw new Error("La cuenta de pago seleccionada no existe.");
         }
 
         const finalTotalContracted = values.servicesDetails.reduce((sum, service) => sum + service.amount, 0);
@@ -187,7 +185,6 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
             ? doc(db, `users/${userId}/incomes`, incomeToEdit.id)
             : doc(collection(db, `users/${userId}/incomes`));
 
-        // Revert previous amounts if editing
         if (incomeToEdit) {
             const prevAccountRef = doc(db, `users/${userId}/accounts`, incomeToEdit.paymentAccount);
             const prevAccountSnap = await getDoc(prevAccountRef);
@@ -199,8 +196,6 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
             }
         }
         
-        // Apply new amounts
-        // We must re-fetch the account data to get the most up-to-date balance in case the account is the same
         const currentAccountSnap = await getDoc(accountRef);
         const currentBalance = currentAccountSnap.data()?.balance || 0;
         const balanceAfterRevert = (incomeToEdit && incomeToEdit.paymentAccount === values.paymentAccount)
@@ -213,7 +208,6 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
 
         batch.set(docRef, finalIncomeData, { merge: true });
         
-        // Reminder Logic
         const newIncomeId = docRef.id;
         const reminderRef = doc(db, `users/${userId}/reminders`, newIncomeId);
         const hasPlanServices = finalIncomeData.services.some(service => servicesRequiringDueDate.includes(service));
@@ -255,7 +249,13 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
 
     } catch (error) {
         console.error("Error al guardar el ingreso:", error);
-        toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo guardar el ingreso." });
+        const errorMessage = error instanceof Error ? error.message : "Ocurrió un error desconocido.";
+        toast({ 
+            variant: "destructive", 
+            title: "Error al Guardar", 
+            description: errorMessage
+        });
+    } finally {
         setIsSubmitting(false);
     }
   }
@@ -431,5 +431,3 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     </Form>
   );
 }
-
-    
