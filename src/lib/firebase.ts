@@ -2,6 +2,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -20,6 +21,7 @@ const missingConfig = Object.entries(firebaseConfig)
 let app;
 let auth;
 let db;
+let messaging = null;
 
 // Initialize Firebase only if all config values are present
 if (missingConfig.length > 0) {
@@ -36,6 +38,9 @@ if (missingConfig.length > 0) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
+    if (typeof window !== 'undefined') {
+        messaging = getMessaging(app);
+    }
   } catch (error) {
     console.error("Firebase initialization error:", error);
     app = null;
@@ -44,4 +49,4 @@ if (missingConfig.length > 0) {
   }
 }
 
-export { app, auth, db };
+export { app, auth, db, messaging };

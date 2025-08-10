@@ -1,10 +1,10 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
+import { auth, db, messaging } from '@/lib/firebase';
 import { PageHeader } from '@/components/layout/page-header';
 import { SettingsCard, SettingsItem, SettingsHeaderCard } from '@/components/settings/settings-card';
 import { useTheme } from '@/context/theme-context';
@@ -23,11 +23,39 @@ import {
   FileCog,
   BarChart2
 } from 'lucide-react';
+import { getToken, isSupported } from "firebase/messaging";
+import { doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+
 
 export default function SettingsPage() {
-  const { userProfile } = useAuth();
+  const { userId, userProfile } = useAuth();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const { toast } = useToast();
+
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [isFcmSupported, setIsFcmSupported] = useState(false);
+
+  useEffect(() => {
+      if (typeof window !== 'undefined') {
+        isSupported().then(supported => {
+            setIsFcmSupported(supported);
+            if(supported && Notification.permission === 'granted' && userId) {
+                // Check if token exists in DB
+                const tokenRef = doc(db, `users/${userId}/fcmTokens`, navigator.userAgent);
+                getDoc(tokenRef).then(docSnap => {
+                    if (docSnap.exists()) {
+                        setNotificationsEnabled(true);
+                    }
+                });
+            } else {
+                setNotificationsEnabled(false);
+            }
+        });
+      }
+  }, [userId]);
+
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -38,8 +66,47 @@ export default function SettingsPage() {
     router.push(path);
   };
   
-  // Placeholder for switch logic
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
+  const handleNotificationToggle = async (checked: boolean) => {
+    if (!isFcmSupported || !messaging || !userId) {
+        toast({ variant: "destructive", title: "No Soportado", description: "Las notificaciones no son soportadas en este navegador o la configuración de Firebase no está completa."});
+        return;
+    }
+
+    if (checked) {
+        // Enable notifications
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                const fcmToken = await getToken(messaging, { vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY });
+                if (fcmToken) {
+                    const tokenRef = doc(db, `users/${userId}/fcmTokens`, navigator.userAgent);
+                    await setDoc(tokenRef, { token: fcmToken, createdAt: new Date().toISOString() });
+                    setNotificationsEnabled(true);
+                    toast({ title: "¡Éxito!", description: "Notificaciones activadas para este dispositivo." });
+                } else {
+                     toast({ variant: "destructive", title: "Error", description: "No se pudo obtener el token de notificación." });
+                }
+            } else {
+                toast({ variant: "destructive", title: "Permiso denegado", description: "No se concedió el permiso para las notificaciones." });
+            }
+        } catch (error) {
+            console.error('Error getting notification token:', error);
+            toast({ variant: "destructive", title: "Error", description: "Ocurrió un error al activar las notificaciones." });
+        }
+    } else {
+        // Disable notifications
+        try {
+            const tokenRef = doc(db, `users/${userId}/fcmTokens`, navigator.userAgent);
+            await deleteDoc(tokenRef);
+            setNotificationsEnabled(false);
+            toast({ title: "Notificaciones desactivadas", description: "Ya no recibirás notificaciones en este dispositivo." });
+        } catch (error) {
+             console.error('Error deleting notification token:', error);
+             toast({ variant: "destructive", title: "Error", description: "Ocurrió un error al desactivar las notificaciones." });
+        }
+    }
+  };
+
 
   return (
     <>
@@ -94,7 +161,6 @@ export default function SettingsPage() {
             bgColor="bg-green-500/10"
             title="Categorías y Listas"
             subtitle="Gestionado en cada sección"
-            isComingSoon // Keeping this as "coming soon" visually but it's conceptually handled
           />
         </SettingsCard>
 
@@ -122,10 +188,11 @@ export default function SettingsPage() {
             icon={<Bell className="text-gray-500" />}
             bgColor="bg-gray-500/10"
             title="Notificaciones"
-            subtitle="Recordatorios y alertas"
+            subtitle={!isFcmSupported ? "No soportado en este navegador" : (notificationsEnabled ? "Activadas" : "Desactivadas")}
             isSwitch
             switchState={notificationsEnabled}
-            onSwitchChange={setNotificationsEnabled}
+            onSwitchChange={handleNotificationToggle}
+            disabled={!isFcmSupported}
           />
           <SettingsItem
             icon={<Moon className="text-gray-500" />}

@@ -67,6 +67,7 @@ interface SettingsItemProps {
   switchState?: boolean;
   onSwitchChange?: (checked: boolean) => void;
   isDestructive?: boolean;
+  disabled?: boolean;
 }
 
 export function SettingsItem({
@@ -79,7 +80,8 @@ export function SettingsItem({
   isSwitch = false,
   switchState = false,
   onSwitchChange = () => {},
-  isDestructive = false
+  isDestructive = false,
+  disabled = false,
 }: SettingsItemProps) {
 
   const content = (
@@ -93,7 +95,7 @@ export function SettingsItem({
       </div>
       <div className="flex items-center">
         {isComingSoon && <Badge variant="outline">Próximamente</Badge>}
-        {isSwitch && <Switch checked={switchState} onCheckedChange={onSwitchChange} />}
+        {isSwitch && <Switch checked={switchState} onCheckedChange={onSwitchChange} disabled={disabled} />}
         {!isComingSoon && !isSwitch && <ChevronRight className="h-5 w-5 text-muted-foreground" />}
       </div>
     </>
@@ -103,12 +105,12 @@ export function SettingsItem({
     "flex items-center gap-4 p-4 border-t border-border",
     {
       "cursor-pointer hover:bg-muted/50 transition-colors": !!onClick && !isComingSoon,
-      "opacity-50 cursor-not-allowed": isComingSoon
+      "opacity-50 cursor-not-allowed": isComingSoon || disabled
     }
   );
 
   return onClick && !isComingSoon && !isSwitch ? (
-    <button onClick={onClick} className={itemClasses} style={{ width: '100%' }}>
+    <button onClick={onClick} className={itemClasses} style={{ width: '100%' }} disabled={disabled}>
       {content}
     </button>
   ) : (
