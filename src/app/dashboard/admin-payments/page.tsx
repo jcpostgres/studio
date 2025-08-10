@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, where, orderBy, doc, deleteDoc } from "firebase/firestore";
 import type { AdminPayment } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import { AdminPaymentForm } from "@/components/admin-payments/admin-payment-form
 import { AdminPaymentsTable } from "@/components/admin-payments/admin-payments-table";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle } from "lucide-react";
-import { deleteAdminPayment } from "@/lib/actions/admin-payments.actions";
 
 export default function AdminPaymentsPage() {
     const { userId } = useAuth();
@@ -79,11 +78,12 @@ export default function AdminPaymentsPage() {
 
     const confirmDelete = async () => {
         if (!userId || !paymentToDelete) return;
-        const result = await deleteAdminPayment({ userId, paymentId: paymentToDelete.id });
-        if (result.success) {
+        try {
+            await deleteDoc(doc(db, `users/${userId}/adminPayments`, paymentToDelete.id));
             toast({ title: "Éxito", description: "Registro eliminado correctamente." });
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.message });
+        } catch (error) {
+            console.error("Error deleting admin payment:", error);
+            toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el registro." });
         }
         setIsAlertOpen(false);
         setPaymentToDelete(null);
