@@ -111,8 +111,8 @@ export default function SettingsPage() {
             icon={<FileText className="text-red-500" />}
             bgColor="bg-red-500/10"
             title="Exportar Datos"
-            subtitle="Generar reportes Excel/PDF"
-            isComingSoon
+            subtitle="Descargar reportes CSV desde Total General"
+            onClick={() => handleNavigate('/dashboard/total-general')}
           />
         </SettingsCard>
 

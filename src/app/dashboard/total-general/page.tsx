@@ -10,10 +10,13 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, DollarSign, Minus, Calendar, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, DollarSign, Minus, Calendar, Users, Download } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function TotalGeneralPage() {
     const { userId } = useAuth();
+    const { toast } = useToast();
     const [loading, setLoading] = useState(true);
     
     const [allIncomes, setAllIncomes] = useState<Income[]>([]);
@@ -100,6 +103,12 @@ export default function TotalGeneralPage() {
             const month = parseDate(exp.date).getMonth();
             breakdown[month].expense += exp.amount;
         });
+        
+        filteredData.payrollPayments.forEach(pay => {
+            const month = parseDate(pay.date).getMonth();
+            // Payroll is already an expense, so we add it to the expense total
+            breakdown[month].expense += pay.totalAmount;
+        });
 
         breakdown.forEach(monthData => {
             monthData.utility = monthData.income - monthData.expense;
@@ -123,6 +132,41 @@ export default function TotalGeneralPage() {
     }, [allIncomes, allExpenses, allTransactions, allPayrollPayments]);
 
     const formatCurrency = (amount: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+    
+    const handleExport = (data: any[], fileName: string) => {
+        if (data.length === 0) {
+            toast({ variant: "destructive", title: "Sin Datos", description: `No hay datos para exportar en ${fileName}.`});
+            return;
+        }
+
+        // Create CSV content
+        const headers = Object.keys(data[0]);
+        const csvContent = [
+            headers.join(','),
+            ...data.map(row => headers.map(header => {
+                let value = row[header];
+                if (typeof value === 'string' && value.includes(',')) {
+                    return `"${value}"`;
+                }
+                if (typeof value === 'object' && value !== null) {
+                    return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+                }
+                return value;
+            }).join(','))
+        ].join('\n');
+
+        // Create a Blob and download link
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${fileName}_${filterYear}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast({ title: "Éxito", description: "La descarga de tu reporte ha comenzado."});
+    };
+
 
     const MetricCard = ({ title, value, colorClass, loading }: { title: string, value: number, colorClass: string, loading: boolean }) => (
         <div className="p-4 bg-card-foreground/5 rounded-lg">
@@ -156,9 +200,10 @@ export default function TotalGeneralPage() {
                 <CardContent>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         <MetricCard title="Ingresos Totales" value={annualSummary.totalIncome} colorClass="text-green-400" loading={loading} />
-                        <MetricCard title="Gastos Totales" value={annualSummary.totalExpense} colorClass="text-red-400" loading={loading} />
-                        <MetricCard title="Nómina" value={annualSummary.totalPayroll} colorClass="text-purple-400" loading={loading} />
+                        <MetricCard title="Gastos Totales" value={annualSummary.totalExpense + annualSummary.totalPayroll} colorClass="text-red-400" loading={loading} />
                         <MetricCard title="Utilidad Neta" value={annualSummary.netUtility} colorClass="text-cyan-400" loading={loading} />
+                        <MetricCard title="Nómina Pagada" value={annualSummary.totalPayroll} colorClass="text-purple-400" loading={loading} />
+
                     </div>
                 </CardContent>
             </Card>
@@ -191,6 +236,24 @@ export default function TotalGeneralPage() {
                     </CardContent>
                 </Card>
              </div>
+             
+             <Card>
+                <CardHeader>
+                    <CardTitle>Exportar Datos</CardTitle>
+                    <CardDescription>Descarga los datos del año seleccionado en formato CSV.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Button onClick={() => handleExport(filteredData.incomes, 'ingresos')} disabled={loading}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar Ingresos
+                    </Button>
+                    <Button onClick={() => handleExport(filteredData.expenses, 'gastos')} disabled={loading}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar Gastos
+                    </Button>
+                    <Button onClick={() => handleExport(filteredData.payrollPayments, 'nomina')} disabled={loading}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar Nómina
+                    </Button>
+                </CardContent>
+             </Card>
 
             <Card>
                 <CardHeader>
