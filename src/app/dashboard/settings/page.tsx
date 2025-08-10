@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { PageHeader } from '@/components/layout/page-header';
 import { SettingsCard, SettingsItem, SettingsHeaderCard } from '@/components/settings/settings-card';
+import { useTheme } from '@/context/theme-context';
 import { 
   Users, 
   FolderKanban, 
@@ -26,6 +27,7 @@ import {
 export default function SettingsPage() {
   const { userProfile } = useAuth();
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -38,7 +40,6 @@ export default function SettingsPage() {
   
   // Placeholder for switch logic
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = React.useState(true);
 
   return (
     <>
@@ -132,8 +133,8 @@ export default function SettingsPage() {
             title="Modo Oscuro"
             subtitle="Apariencia de la aplicación"
             isSwitch
-            switchState={darkModeEnabled}
-            onSwitchChange={setDarkModeEnabled}
+            switchState={theme === 'dark'}
+            onSwitchChange={toggleTheme}
           />
         </SettingsCard>
 
@@ -159,5 +160,3 @@ export default function SettingsPage() {
     </>
   );
 }
-
-    
