@@ -19,7 +19,8 @@ import {
   Moon,
   HelpCircle,
   LogOut,
-  FileCog
+  FileCog,
+  BarChart2
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -91,25 +92,25 @@ export default function SettingsPage() {
             icon={<List className="text-green-500" />}
             bgColor="bg-green-500/10"
             title="Categorías y Listas"
-            subtitle="Personalizar opciones"
-            isComingSoon
+            subtitle="Gestionado en cada sección"
+            isComingSoon // Keeping this as "coming soon" visually but it's conceptually handled
           />
         </SettingsCard>
 
         {/* 4. Advanced Reports */}
         <SettingsCard sectionTitle="Informes Avanzados">
+           <SettingsItem
+            icon={<BarChart2 className="text-cyan-500" />}
+            bgColor="bg-cyan-500/10"
+            title="Reporte de Servicios"
+            subtitle="Analiza tus servicios más vendidos"
+            onClick={() => handleNavigate('/dashboard/service-report')}
+          />
           <SettingsItem
             icon={<FileText className="text-red-500" />}
             bgColor="bg-red-500/10"
             title="Exportar Datos"
             subtitle="Generar reportes Excel/PDF"
-            isComingSoon
-          />
-          <SettingsItem
-            icon={<AreaChart className="text-cyan-500" />}
-            bgColor="bg-cyan-500/10"
-            title="Analytics Avanzado"
-            subtitle="Gráficos y estadísticas"
             isComingSoon
           />
         </SettingsCard>
@@ -158,3 +159,5 @@ export default function SettingsPage() {
     </>
   );
 }
+
+    
