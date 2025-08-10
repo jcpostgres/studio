@@ -7,8 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { AdminPayment } from "@/lib/types";
-import { saveAdminPayment } from "@/lib/actions/admin-payments.actions";
+import { AdminPayment, Reminder } from "@/lib/types";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,8 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Loader2 } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, writeBatch, collection, getDoc } from "firebase/firestore";
 
-// Client-side schema, fields for payment are optional
 const adminPaymentSchema = z.object({
     conceptName: z.string().min(2, "El nombre del concepto es requerido."),
     category: z.enum(["Servicios Básicos", "Alquiler", "Seguros", "Préstamos/Créditos", "Suscripciones/Membresías", "Impuestos", "Otros"]),
@@ -84,20 +84,64 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
         }
         setIsSubmitting(true);
         
-        const result = await saveAdminPayment({
-            userId,
-            paymentData: values,
-            paymentId: paymentToEdit?.id,
-        });
-
-        if (result.success) {
-            toast({ title: "Éxito", description: result.message });
+        try {
+            const batch = writeBatch(db);
+    
+            const docRef = paymentToEdit
+                ? doc(db, `users/${userId}/adminPayments`, paymentToEdit.id)
+                : doc(collection(db, `users/${userId}/adminPayments`));
+    
+            const existingDataSnap = paymentToEdit ? await getDoc(docRef) : null;
+            const existingData = existingDataSnap?.data();
+    
+            const dataToSave: Omit<AdminPayment, 'id'> = {
+                ...values,
+                paymentDueDate: values.paymentDueDate || null,
+                renewalDate: values.renewalDate || null,
+                createdAt: existingData?.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            };
+    
+            batch.set(docRef, dataToSave, { merge: true });
+    
+            // --- REMINDER LOGIC ---
+            const reminderRef = doc(db, `users/${userId}/reminders`, docRef.id);
+            if (dataToSave.paymentDueDate) {
+                const reminderMessage = `Recordatorio de Pago: ${dataToSave.conceptName} vence el ${new Date(dataToSave.paymentDueDate).toLocaleDateString()}.`;
+                const reminderData: Omit<Reminder, 'id'> = {
+                    incomeId: null,
+                    adminPaymentId: docRef.id,
+                    clientId: dataToSave.providerName,
+                    brandName: dataToSave.conceptName,
+                    service: dataToSave.category,
+                    renewalAmount: dataToSave.paymentAmount || 0,
+                    debtAmount: 0,
+                    dueDate: dataToSave.paymentDueDate,
+                    status: 'pending',
+                    contact: '',
+                    message: reminderMessage,
+                    timestamp: new Date().toISOString(),
+                    resolvedAt: null,
+                };
+                batch.set(reminderRef, reminderData, { merge: true });
+            } else {
+                 // If due date was removed or is not present, delete the associated reminder
+                const reminderSnap = await getDoc(reminderRef);
+                if (reminderSnap.exists()) {
+                    batch.delete(reminderRef);
+                }
+            }
+            
+            await batch.commit();
+    
+            toast({ title: "Éxito", description: "Registro guardado correctamente." });
             onSuccess();
-        } else {
-            toast({ variant: "destructive", title: "Error al guardar", description: result.message });
+        } catch (error) {
+            console.error("Error saving admin payment:", error);
+            toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo guardar el registro." });
+        } finally {
+            setIsSubmitting(false);
         }
-        
-        setIsSubmitting(false);
     }
     
     return (

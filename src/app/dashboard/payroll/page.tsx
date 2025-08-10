@@ -172,7 +172,7 @@ export default function PayrollPage() {
                 </Select>
             </div>
             
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-1 gap-6">
                  {loading ? (
                     [...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
                 ) : employees.length > 0 ? (
@@ -231,7 +231,7 @@ export default function PayrollPage() {
                         )
                     })
                 ) : (
-                    <Card className="md:col-span-2 flex items-center justify-center h-40">
+                    <Card className="md:col-span-1 flex items-center justify-center h-40">
                         <p className="text-muted-foreground">No tienes empleados. ¡Agrega uno para empezar!</p>
                     </Card>
                 )}
@@ -297,7 +297,3 @@ export default function PayrollPage() {
         </>
     );
 }
-
-    
-
-    
