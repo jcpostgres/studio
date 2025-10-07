@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import type { Employee, PayrollPayment } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
@@ -33,10 +33,10 @@ export default function PayrollReportPage() {
     useEffect(() => {
         if (!userId) return;
         setLoading(true);
-        const unsubEmployees = onSnapshot(collection(db, `users/${userId}/employees`), (snap) => 
+        const unsubEmployees = onSnapshot(collection(assertDb(), `users/${userId}/employees`), (snap) => 
             setEmployees(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Employee)))
         );
-        const unsubPayments = onSnapshot(collection(db, `users/${userId}/payrollPayments`), (snap) => {
+        const unsubPayments = onSnapshot(collection(assertDb(), `users/${userId}/payrollPayments`), (snap) => {
             setAllPayments(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as PayrollPayment)));
             setLoading(false);
         });

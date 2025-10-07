@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, DollarSign, ArrowDown, Wallet, Landmark, Eye, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { Account, Transaction } from "@/lib/types";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { AccountForm } from "@/components/accounts/account-form";
@@ -46,7 +46,7 @@ export default function AccountsPage() {
   useEffect(() => {
     if (!userId) return;
 
-    const accountsUnsub = onSnapshot(collection(db, `users/${userId}/accounts`), (snapshot) => {
+  const accountsUnsub = onSnapshot(collection(assertDb(), `users/${userId}/accounts`), (snapshot) => {
       const fetchedAccounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
       setAccounts(fetchedAccounts);
       setLoading(false);
@@ -56,7 +56,7 @@ export default function AccountsPage() {
       setLoading(false);
     });
 
-    const transactionsUnsub = onSnapshot(collection(db, `users/${userId}/transactions`), (snapshot) => {
+  const transactionsUnsub = onSnapshot(collection(assertDb(), `users/${userId}/transactions`), (snapshot) => {
       const fetchedTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
       setTransactions(fetchedTransactions);
     });
@@ -83,7 +83,7 @@ export default function AccountsPage() {
   const confirmDelete = async () => {
     if (!userId || !accountToDelete) return;
     try {
-        await deleteDoc(doc(db, `users/${userId}/accounts`, accountToDelete.id));
+  await deleteDoc(doc(assertDb(), `users/${userId}/accounts`, accountToDelete.id));
         toast({ title: "Éxito", description: "Cuenta eliminada correctamente." });
     } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar la cuenta." });
@@ -103,7 +103,7 @@ export default function AccountsPage() {
 
     try {
         if (editingAccount) {
-            const accountDocRef = doc(db, `users/${userId}/accounts`, editingAccount.id);
+            const accountDocRef = doc(assertDb(), `users/${userId}/accounts`, editingAccount.id);
             await updateDoc(accountDocRef, {
                 name: values.name,
                 commission: values.commission / 100,
@@ -111,7 +111,7 @@ export default function AccountsPage() {
             });
             toast({ title: "Éxito", description: "Cuenta actualizada correctamente." });
         } else {
-            const newAccountRef = doc(collection(db, `users/${userId}/accounts`));
+            const newAccountRef = doc(collection(assertDb(), `users/${userId}/accounts`));
             await setDoc(newAccountRef, {
                 id: newAccountRef.id,
                 name: values.name,

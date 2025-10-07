@@ -22,7 +22,7 @@ import { MoreHorizontal, Pencil, Trash2, ArrowRight } from "lucide-react";
 import { Account, Transaction } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 
 interface TransactionsTableProps {
@@ -43,7 +43,7 @@ export function TransactionsTable({
 
   useEffect(() => {
     if (!userId) return;
-    const accountsRef = collection(db, `users/${userId}/accounts`);
+    const accountsRef = collection(assertDb(), `users/${userId}/accounts`);
     const unsubscribe = onSnapshot(accountsRef, (snapshot) => {
       const newAccountsMap = new Map<string, string>();
       snapshot.forEach(doc => {

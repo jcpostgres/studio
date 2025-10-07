@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, doc, writeBatch, getDoc, } from "firebase/firestore";
 import type { Account, Transaction } from "@/lib/types";
 
@@ -91,7 +91,7 @@ export function TransactionForm({ transactionToEdit, onSuccess }: TransactionFor
 
   useEffect(() => {
     if (!userId) return;
-    const accountsUnsub = onSnapshot(collection(db, `users/${userId}/accounts`), (snapshot) => {
+    const accountsUnsub = onSnapshot(collection(assertDb(), `users/${userId}/accounts`), (snapshot) => {
       setAccounts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Account)));
     });
     return () => accountsUnsub();
@@ -115,20 +115,20 @@ export function TransactionForm({ transactionToEdit, onSuccess }: TransactionFor
     setIsSubmitting(true);
     
     try {
-        const batch = writeBatch(db);
-        const transactionRef = transactionToEdit 
-            ? doc(db, `users/${userId}/transactions`, transactionToEdit.id)
-            : doc(collection(db, `users/${userId}/transactions`));
+    const batch = writeBatch(assertDb());
+    const transactionRef = transactionToEdit 
+      ? doc(assertDb(), `users/${userId}/transactions`, transactionToEdit.id)
+      : doc(collection(assertDb(), `users/${userId}/transactions`));
 
         // Revert previous transaction if editing
         if (transactionToEdit) {
-            if (transactionToEdit.type === 'withdrawal' && transactionToEdit.account) {
-                const prevAccRef = doc(db, `users/${userId}/accounts`, transactionToEdit.account);
-                const prevAccSnap = await getDoc(prevAccRef);
+        if (transactionToEdit.type === 'withdrawal' && transactionToEdit.account) {
+        const prevAccRef = doc(assertDb(), `users/${userId}/accounts`, transactionToEdit.account);
+        const prevAccSnap = await getDoc(prevAccRef);
                 if (prevAccSnap.exists()) batch.update(prevAccRef, { balance: prevAccSnap.data().balance + transactionToEdit.amount });
             } else if (transactionToEdit.type === 'accountTransfer' && transactionToEdit.sourceAccount && transactionToEdit.destinationAccount) {
-                const prevSourceRef = doc(db, `users/${userId}/accounts`, transactionToEdit.sourceAccount);
-                const prevDestRef = doc(db, `users/${userId}/accounts`, transactionToEdit.destinationAccount);
+        const prevSourceRef = doc(assertDb(), `users/${userId}/accounts`, transactionToEdit.sourceAccount);
+        const prevDestRef = doc(assertDb(), `users/${userId}/accounts`, transactionToEdit.destinationAccount);
                 const [prevSourceSnap, prevDestSnap] = await Promise.all([getDoc(prevSourceRef), getDoc(prevDestRef)]);
                 if (prevSourceSnap.exists()) batch.update(prevSourceRef, { balance: prevSourceSnap.data().balance + transactionToEdit.amount });
                 if (prevDestSnap.exists()) batch.update(prevDestRef, { balance: prevDestSnap.data().balance - transactionToEdit.amount });
@@ -137,7 +137,7 @@ export function TransactionForm({ transactionToEdit, onSuccess }: TransactionFor
         
         // Apply new transaction
         if (values.type === 'withdrawal') {
-            const accRef = doc(db, `users/${userId}/accounts`, values.account!);
+            const accRef = doc(assertDb(), `users/${userId}/accounts`, values.account!);
             const accSnap = await getDoc(accRef);
             if (!accSnap.exists()) throw new Error("La cuenta no existe.");
             
@@ -148,8 +148,8 @@ export function TransactionForm({ transactionToEdit, onSuccess }: TransactionFor
 
             batch.update(accRef, { balance: balanceAfterRevert - values.amount });
         } else if (values.type === 'accountTransfer') {
-            const sourceRef = doc(db, `users/${userId}/accounts`, values.sourceAccount!);
-            const destRef = doc(db, `users/${userId}/accounts`, values.destinationAccount!);
+            const sourceRef = doc(assertDb(), `users/${userId}/accounts`, values.sourceAccount!);
+            const destRef = doc(assertDb(), `users/${userId}/accounts`, values.destinationAccount!);
             const [sourceSnap, destSnap] = await Promise.all([getDoc(sourceRef), getDoc(destRef)]);
 
             if (!sourceSnap.exists() || !destSnap.exists()) throw new Error("Una de las cuentas no existe.");

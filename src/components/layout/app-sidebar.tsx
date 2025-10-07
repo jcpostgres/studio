@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
-import { auth } from "@/lib/firebase";
+import { assertAuth } from "@/lib/firebase";
 import {
   LayoutDashboard,
   Wallet,
@@ -57,7 +57,7 @@ export function AppSidebar() {
   const { userProfile } = useAuth();
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await assertAuth().signOut();
     router.push("/login");
   };
 
@@ -74,7 +74,6 @@ export function AppSidebar() {
     items.map((item) => (
       <SidebarMenuItem key={item.href}>
         <SidebarMenuButton
-          href={item.href}
           isActive={pathname.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')}
           onClick={(e) => {
             e.preventDefault();

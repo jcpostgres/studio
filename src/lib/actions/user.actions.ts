@@ -1,7 +1,7 @@
 "use server";
 
 import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { z } from "zod";
 
 const UserProfileSchema = z.object({
@@ -18,7 +18,7 @@ export async function saveUserProfile(
     const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "default-app-id";
 
     const userDocRef = doc(
-      db,
+      assertDb(),
       `artifacts/${appId}/users/${validatedData.userId}/profile`,
       "userProfile"
     );

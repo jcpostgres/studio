@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, doc, writeBatch, getDoc, } from "firebase/firestore";
 import type { Income, Account, Reminder } from "@/lib/types";
 import { Loader2 } from "lucide-react";
@@ -110,7 +110,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
 
   useEffect(() => {
     if (!userId) return;
-    const accountsUnsub = onSnapshot(collection(db, `users/${userId}/accounts`), (snapshot) => {
+    const accountsUnsub = onSnapshot(collection(assertDb(), `users/${userId}/accounts`), (snapshot) => {
       setAccounts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Account)));
     });
     return () => accountsUnsub();
@@ -154,9 +154,9 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
     setIsSubmitting(true);
     
     try {
-        const batch = writeBatch(db);
+    const batch = writeBatch(assertDb());
 
-        const accountRef = doc(db, `users/${userId}/accounts`, values.paymentAccount);
+    const accountRef = doc(assertDb(), `users/${userId}/accounts`, values.paymentAccount);
         const accountSnap = await getDoc(accountRef);
         if (!accountSnap.exists()) {
             throw new Error("La cuenta de pago seleccionada no existe.");
@@ -182,11 +182,11 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
         };
 
         const docRef = incomeToEdit 
-            ? doc(db, `users/${userId}/incomes`, incomeToEdit.id)
-            : doc(collection(db, `users/${userId}/incomes`));
+            ? doc(assertDb(), `users/${userId}/incomes`, incomeToEdit.id)
+            : doc(collection(assertDb(), `users/${userId}/incomes`));
 
         if (incomeToEdit) {
-            const prevAccountRef = doc(db, `users/${userId}/accounts`, incomeToEdit.paymentAccount);
+            const prevAccountRef = doc(assertDb(), `users/${userId}/accounts`, incomeToEdit.paymentAccount);
             const prevAccountSnap = await getDoc(prevAccountRef);
             if (prevAccountSnap.exists()) {
                 const prevBalance = prevAccountSnap.data().balance;
@@ -209,7 +209,7 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
         batch.set(docRef, finalIncomeData, { merge: true });
         
         const newIncomeId = docRef.id;
-        const reminderRef = doc(db, `users/${userId}/reminders`, newIncomeId);
+    const reminderRef = doc(assertDb(), `users/${userId}/reminders`, newIncomeId);
         const hasPlanServices = finalIncomeData.services.some(service => servicesRequiringDueDate.includes(service));
 
         if (hasPlanServices && finalIncomeData.dueDate) {

@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Loader2 } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { doc, setDoc, writeBatch, collection, getDoc } from "firebase/firestore";
 
 const adminPaymentSchema = z.object({
@@ -85,11 +85,11 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
         setIsSubmitting(true);
         
         try {
-            const batch = writeBatch(db);
+            const batch = writeBatch(assertDb());
     
             const docRef = paymentToEdit
-                ? doc(db, `users/${userId}/adminPayments`, paymentToEdit.id)
-                : doc(collection(db, `users/${userId}/adminPayments`));
+                ? doc(assertDb(), `users/${userId}/adminPayments`, paymentToEdit.id)
+                : doc(collection(assertDb(), `users/${userId}/adminPayments`));
     
             const existingDataSnap = paymentToEdit ? await getDoc(docRef) : null;
             const existingData = existingDataSnap?.data();
@@ -105,7 +105,7 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
             batch.set(docRef, dataToSave, { merge: true });
     
             // --- REMINDER LOGIC ---
-            const reminderRef = doc(db, `users/${userId}/reminders`, docRef.id);
+            const reminderRef = doc(assertDb(), `users/${userId}/reminders`, docRef.id);
             if (dataToSave.paymentDueDate) {
                 const reminderMessage = `Recordatorio de Pago: ${dataToSave.conceptName} vence el ${new Date(dataToSave.paymentDueDate).toLocaleDateString()}.`;
                 const reminderData: Omit<Reminder, 'id'> = {

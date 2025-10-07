@@ -17,7 +17,7 @@ import { Expense, Account } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 
 interface ExpensesTableProps {
@@ -31,9 +31,9 @@ export function ExpensesTable({ expenses, onEdit, onDelete, loading }: ExpensesT
   const { userId } = useAuth();
   const [accountsMap, setAccountsMap] = useState<Map<string, string>>(new Map());
 
-  useEffect(() => {
+    useEffect(() => {
     if (!userId) return;
-    const accountsRef = collection(db, `users/${userId}/accounts`);
+    const accountsRef = collection(assertDb(), `users/${userId}/accounts`);
     const unsubscribe = onSnapshot(accountsRef, (snapshot) => {
       const newAccountsMap = new Map<string, string>();
       snapshot.forEach(doc => {

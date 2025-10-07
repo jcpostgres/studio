@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import type { Income } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { IncomeForm } from "@/components/incomes/income-form";
@@ -26,8 +26,8 @@ export default function EditIncomePage() {
 
     const fetchIncome = async () => {
       try {
-        const incomeDocRef = doc(db, `users/${userId}/incomes`, id);
-        const docSnap = await getDoc(incomeDocRef);
+  const incomeDocRef = doc(assertDb(), `users/${userId}/incomes`, id);
+  const docSnap = await getDoc(incomeDocRef);
         if (docSnap.exists()) {
           setIncome({ id: docSnap.id, ...docSnap.data() } as Income);
         } else {

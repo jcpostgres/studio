@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, writeBatch, query, where, getDocs } from "firebase/firestore";
 import type { Employee, PayrollPayment, Account, Expense } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
@@ -44,14 +44,14 @@ export default function PayrollPage() {
 
     useEffect(() => {
         if (!userId) return;
-        const unsubEmployees = onSnapshot(collection(db, `users/${userId}/employees`), snap => {
+    const unsubEmployees = onSnapshot(collection(assertDb(), `users/${userId}/employees`), snap => {
             setEmployees(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
             setLoading(false);
         });
-        const unsubPayments = onSnapshot(collection(db, `users/${userId}/payrollPayments`), snap => {
+    const unsubPayments = onSnapshot(collection(assertDb(), `users/${userId}/payrollPayments`), snap => {
             setPayments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollPayment)));
         });
-        const unsubAccounts = onSnapshot(collection(db, `users/${userId}/accounts`), snap => {
+    const unsubAccounts = onSnapshot(collection(assertDb(), `users/${userId}/accounts`), snap => {
             setAccounts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account)));
         });
 
@@ -107,12 +107,12 @@ export default function PayrollPage() {
     const confirmDeleteEmployee = async () => {
         if (!userId || !employeeToDelete) return;
         try {
-            const batch = writeBatch(db);
+            const batch = writeBatch(assertDb());
             
-            const employeeRef = doc(db, `users/${userId}/employees`, employeeToDelete.id);
+            const employeeRef = doc(assertDb(), `users/${userId}/employees`, employeeToDelete.id);
             batch.delete(employeeRef);
 
-            const paymentsQuery = query(collection(db, `users/${userId}/payrollPayments`), where("employeeId", "==", employeeToDelete.id));
+            const paymentsQuery = query(collection(assertDb(), `users/${userId}/payrollPayments`), where("employeeId", "==", employeeToDelete.id));
             const paymentsSnap = await getDocs(paymentsQuery);
             paymentsSnap.forEach(paymentDoc => batch.delete(paymentDoc.ref));
 

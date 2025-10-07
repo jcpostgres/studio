@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, query, where, orderBy, doc, deleteDoc } from "firebase/firestore";
 import type { AdminPayment } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
@@ -37,7 +37,7 @@ export default function AdminPaymentsPage() {
     useEffect(() => {
         if (!userId) return;
 
-        const baseQuery = collection(db, `users/${userId}/adminPayments`);
+    const baseQuery = collection(assertDb(), `users/${userId}/adminPayments`);
         let q = query(baseQuery, orderBy("conceptName", "asc"));
 
         if (filterCategory !== "Todos") {
@@ -79,7 +79,7 @@ export default function AdminPaymentsPage() {
     const confirmDelete = async () => {
         if (!userId || !paymentToDelete) return;
         try {
-            await deleteDoc(doc(db, `users/${userId}/adminPayments`, paymentToDelete.id));
+            await deleteDoc(doc(assertDb(), `users/${userId}/adminPayments`, paymentToDelete.id));
             toast({ title: "Éxito", description: "Registro eliminado correctamente." });
         } catch (error) {
             console.error("Error deleting admin payment:", error);

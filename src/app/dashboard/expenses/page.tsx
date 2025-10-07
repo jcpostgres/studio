@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
 import { Expense } from "@/lib/types";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, doc, deleteDoc, getDoc, writeBatch } from "firebase/firestore";
 import { ExpensesTable } from "@/components/expenses/expenses-table";
 import { useToast } from "@/hooks/use-toast";
@@ -33,8 +33,8 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     if (!userId) return;
-    const expensesRef = collection(db, `users/${userId}/expenses`);
-    const unsubscribe = onSnapshot(expensesRef, (snapshot) => {
+  const expensesRef = collection(assertDb(), `users/${userId}/expenses`);
+  const unsubscribe = onSnapshot(expensesRef, (snapshot) => {
       const fetchedExpenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Expense));
       setExpenses(fetchedExpenses);
       setLoading(false);
@@ -96,10 +96,10 @@ export default function ExpensesPage() {
     if (!userId || !expenseToDelete) return;
 
     try {
-        const batch = writeBatch(db);
+  const batch = writeBatch(assertDb());
 
-        // Revert account balance
-        const accountRef = doc(db, `users/${userId}/accounts`, expenseToDelete.paymentAccount);
+  // Revert account balance
+  const accountRef = doc(assertDb(), `users/${userId}/accounts`, expenseToDelete.paymentAccount);
         const accountSnap = await getDoc(accountRef);
         if (accountSnap.exists()){
              const currentBalance = accountSnap.data()?.balance || 0;
@@ -109,7 +109,7 @@ export default function ExpensesPage() {
         }
         
         // Delete expense
-        const expenseDocRef = doc(db, `users/${userId}/expenses`, expenseToDelete.id);
+  const expenseDocRef = doc(assertDb(), `users/${userId}/expenses`, expenseToDelete.id);
         batch.delete(expenseDocRef);
 
         await batch.commit();

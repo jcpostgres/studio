@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, writeBatch, collection, getDoc, } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { z } from "zod";
 import type { Income, Reminder } from "@/lib/types";
 
@@ -40,8 +40,8 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
   try {
     const validatedData = incomeFormSchema.parse(incomeData);
     
-    const accountRef = doc(db, `users/${userId}/accounts`, validatedData.paymentAccount);
-    const accountSnap = await getDoc(accountRef);
+  const accountRef = doc(assertDb(), `users/${userId}/accounts`, validatedData.paymentAccount);
+  const accountSnap = await getDoc(accountRef);
     if (!accountSnap.exists()) {
         return { success: false, message: "La cuenta de pago seleccionada no existe." };
     }
@@ -74,15 +74,15 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
       status: validatedData.status,
     };
 
-    const batch = writeBatch(db);
+  const batch = writeBatch(assertDb());
 
     let docRef;
     // --- EDITING EXISTING INCOME ---
     if (incomeId && previousIncomeData) {
-        docRef = doc(db, `users/${userId}/incomes`, incomeId);
+  docRef = doc(assertDb(), `users/${userId}/incomes`, incomeId);
         
         // --- REVERT PREVIOUS TRANSACTION ---
-        const prevAccountRef = doc(db, `users/${userId}/accounts`, previousIncomeData.paymentAccount);
+  const prevAccountRef = doc(assertDb(), `users/${userId}/accounts`, previousIncomeData.paymentAccount);
         const prevAccountSnap = await getDoc(prevAccountRef);
 
         if (prevAccountSnap.exists()) {
@@ -94,7 +94,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
         
         // --- APPLY NEW TRANSACTION ---
         // Note: We refetch the account data in case the previous tx was on the same account
-        const currentAccountSnap = await getDoc(accountRef); 
+  const currentAccountSnap = await getDoc(accountRef); 
         const currentBalance = currentAccountSnap.data()?.balance || 0;
         const balanceAfterRevert = (previousIncomeData.paymentAccount === validatedData.paymentAccount) 
             ? currentBalance - previousIncomeData.amountWithCommission
@@ -108,7 +108,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
 
     } else {
     // --- CREATING NEW INCOME ---
-        docRef = doc(collection(db, `users/${userId}/incomes`));
+  docRef = doc(collection(assertDb(), `users/${userId}/incomes`));
         
         const currentBalance = accountData.balance || 0;
         batch.update(accountRef, {
@@ -124,7 +124,7 @@ export async function saveIncome({ userId, incomeData, incomeId, previousIncomeD
     const hasPlanServices = finalIncomeDataObject.services.some(service => servicesRequiringDueDate.includes(service));
     
     // Reference to the reminder document, using the income ID
-    const reminderRef = doc(db, `users/${userId}/reminders`, newIncomeId);
+  const reminderRef = doc(assertDb(), `users/${userId}/reminders`, newIncomeId);
     
     if (hasPlanServices && finalIncomeDataObject.dueDate) {
         const renewalAmount = finalIncomeDataObject.servicesDetails

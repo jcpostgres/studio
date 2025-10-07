@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
 import { Income } from "@/lib/types";
-import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, deleteDoc, writeBatch } from "firebase/firestore";
+import { assertDb } from "@/lib/firebase";
+import { collection, onSnapshot, doc, deleteDoc, writeBatch, getDoc } from "firebase/firestore";
 import { IncomesTable } from "@/components/incomes/incomes-table";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -33,8 +33,8 @@ export default function IncomesPage() {
 
   useEffect(() => {
     if (!userId) return;
-    const incomesRef = collection(db, `users/${userId}/incomes`);
-    const unsubscribe = onSnapshot(incomesRef, (snapshot) => {
+  const incomesRef = collection(assertDb(), `users/${userId}/incomes`);
+  const unsubscribe = onSnapshot(incomesRef, (snapshot) => {
       const fetchedIncomes = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Income));
       setIncomes(fetchedIncomes);
       setLoading(false);
@@ -90,23 +90,23 @@ export default function IncomesPage() {
     if (!userId || !incomeToDelete) return;
 
     try {
-        const batch = writeBatch(db);
+      const batch = writeBatch(assertDb());
 
-        // Revert account balance
-        const accountRef = doc(db, `users/${userId}/accounts`, incomeToDelete.paymentAccount);
-        batch.update(accountRef, {
-            balance: (await doc(db, accountRef.path).get()).data()?.balance - incomeToDelete.amountWithCommission
-        });
+    // Revert account balance
+  const accountRef = doc(assertDb(), `users/${userId}/accounts`, incomeToDelete.paymentAccount);
+  const accountSnap = await getDoc(accountRef);
+    const prevBalance = accountSnap.exists() ? (accountSnap.data()?.balance ?? 0) : 0;
+    batch.update(accountRef, { balance: prevBalance - incomeToDelete.amountWithCommission });
 
-        // Delete associated reminder if it exists
-        const reminderQuery = collection(db, `users/${userId}/reminders`);
-        const reminderSnapshot = await doc(reminderQuery, incomeToDelete.id).get();
-        if (reminderSnapshot.exists()) {
-            batch.delete(doc(db, `users/${userId}/reminders`, incomeToDelete.id));
-        }
+    // Delete associated reminder if it exists
+  const reminderQuery = collection(assertDb(), `users/${userId}/reminders`);
+  const reminderSnapshot = await getDoc(doc(assertDb(), `users/${userId}/reminders`, incomeToDelete.id));
+    if (reminderSnapshot.exists()) {
+      batch.delete(doc(assertDb(), `users/${userId}/reminders`, incomeToDelete.id));
+    }
         
         // Delete income
-        const incomeDocRef = doc(db, `users/${userId}/incomes`, incomeToDelete.id);
+      const incomeDocRef = doc(assertDb(), `users/${userId}/incomes`, incomeToDelete.id);
         batch.delete(incomeDocRef);
 
         await batch.commit();

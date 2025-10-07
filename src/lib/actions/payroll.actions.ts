@@ -2,7 +2,7 @@
 "use server";
 
 import { doc, setDoc, deleteDoc, writeBatch, collection, getDocs, query, where, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { z } from "zod";
 import type { Employee, PayrollPayment, Expense } from "@/lib/types";
 
@@ -28,8 +28,8 @@ export async function saveEmployee({ userId, employeeData, employeeId }: SaveEmp
         const validatedData = employeeSchema.parse(employeeData);
         
         const docRef = employeeId
-            ? doc(db, `users/${userId}/employees`, employeeId)
-            : doc(collection(db, `users/${userId}/employees`));
+            ? doc(assertDb(), `users/${userId}/employees`, employeeId)
+            : doc(collection(assertDb(), `users/${userId}/employees`));
 
         const dataToSave: Omit<Employee, 'id'> = {
             ...validatedData,
@@ -52,12 +52,12 @@ interface DeleteEmployeeParams {
 
 export async function deleteEmployee({ userId, employeeId }: DeleteEmployeeParams) {
     try {
-        const batch = writeBatch(db);
+    const batch = writeBatch(assertDb());
         
-        const employeeRef = doc(db, `users/${userId}/employees`, employeeId);
+    const employeeRef = doc(assertDb(), `users/${userId}/employees`, employeeId);
         batch.delete(employeeRef);
 
-        const paymentsQuery = query(collection(db, `users/${userId}/payrollPayments`), where("employeeId", "==", employeeId));
+    const paymentsQuery = query(collection(assertDb(), `users/${userId}/payrollPayments`), where("employeeId", "==", employeeId));
         const paymentsSnap = await getDocs(paymentsQuery);
         paymentsSnap.forEach(doc => batch.delete(doc.ref));
 
@@ -85,7 +85,7 @@ interface SavePayrollPaymentParams {
     paymentData: z.infer<typeof payrollPaymentSchema>;
     employeeId: string;
     employeeName: string;
-    paymentType: '4th' | '19th';
+    paymentType: '4th' | '20th' | 'bonus';
     month: number;
     year: number;
 }
@@ -94,10 +94,10 @@ export async function savePayrollPayment(params: SavePayrollPaymentParams) {
     const { userId, paymentData, employeeId, employeeName, paymentType, month, year } = params;
     try {
         const validatedData = payrollPaymentSchema.parse(paymentData);
-        const batch = writeBatch(db);
+    const batch = writeBatch(assertDb());
 
         // 1. Create Payroll Payment Record
-        const paymentRef = doc(collection(db, `users/${userId}/payrollPayments`));
+    const paymentRef = doc(collection(assertDb(), `users/${userId}/payrollPayments`));
         const paymentToSave: Omit<PayrollPayment, 'id'> = {
             employeeId,
             employeeName,
@@ -113,7 +113,7 @@ export async function savePayrollPayment(params: SavePayrollPaymentParams) {
         batch.set(paymentRef, paymentToSave);
 
         // 2. Create corresponding Expense record
-        const expenseRef = doc(collection(db, `users/${userId}/expenses`));
+    const expenseRef = doc(collection(assertDb(), `users/${userId}/expenses`));
         const expenseToSave: Omit<Expense, 'id'> = {
             date: validatedData.date,
             type: 'fijo',
@@ -127,8 +127,8 @@ export async function savePayrollPayment(params: SavePayrollPaymentParams) {
         batch.set(expenseRef, expenseToSave);
 
         // 3. Update Account Balance
-        const accountRef = doc(db, `users/${userId}/accounts`, validatedData.paymentAccount);
-        const accountSnap = await getDoc(accountRef);
+    const accountRef = doc(assertDb(), `users/${userId}/accounts`, validatedData.paymentAccount);
+    const accountSnap = await getDoc(accountRef);
         if (!accountSnap.exists()) {
             throw new Error("La cuenta de pago no existe.");
         }

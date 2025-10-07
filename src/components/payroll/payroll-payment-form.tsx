@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { doc, collection, writeBatch, getDoc } from "firebase/firestore";
 
 const formSchema = z.object({
@@ -59,10 +59,10 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
         setIsSubmitting(true);
         
         try {
-            const batch = writeBatch(db);
+            const batch = writeBatch(assertDb());
 
             // 1. Create Payroll Payment Record
-            const paymentRef = doc(collection(db, `users/${userId}/payrollPayments`));
+            const paymentRef = doc(collection(assertDb(), `users/${userId}/payrollPayments`));
             const paymentToSave: Omit<PayrollPayment, 'id'> = {
                 employeeId: employee.id,
                 employeeName: employee.name,
@@ -78,7 +78,7 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
             batch.set(paymentRef, paymentToSave);
 
             // 2. Create corresponding Expense record
-            const expenseRef = doc(collection(db, `users/${userId}/expenses`));
+            const expenseRef = doc(collection(assertDb(), `users/${userId}/expenses`));
             const expenseToSave: Omit<Expense, 'id'> = {
                 date: values.date,
                 type: 'fijo',
@@ -92,7 +92,7 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
             batch.set(expenseRef, expenseToSave);
 
             // 3. Update Account Balance
-            const accountRef = doc(db, `users/${userId}/accounts`, values.paymentAccount);
+            const accountRef = doc(assertDb(), `users/${userId}/accounts`, values.paymentAccount);
             const accountSnap = await getDoc(accountRef);
             if (!accountSnap.exists()) {
                 throw new Error("La cuenta de pago no existe.");

@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { doc, setDoc, collection } from "firebase/firestore";
 
 const formSchema = z.object({
@@ -59,8 +59,8 @@ export function EmployeeForm({ employeeToEdit, onSuccess }: EmployeeFormProps) {
         
         try {
             const docRef = employeeToEdit
-                ? doc(db, `users/${userId}/employees`, employeeToEdit.id)
-                : doc(collection(db, `users/${userId}/employees`));
+                ? doc(assertDb(), `users/${userId}/employees`, employeeToEdit.id)
+                : doc(collection(assertDb(), `users/${userId}/employees`));
 
             const dataToSave: Omit<Employee, 'id'> = {
                 ...values,

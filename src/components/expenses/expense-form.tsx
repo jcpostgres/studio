@@ -16,7 +16,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, doc, getDoc, writeBatch } from "firebase/firestore";
 import type { Account, Expense } from "@/lib/types";
 import { suggestCategories } from "@/lib/actions/expenses.actions";
@@ -62,11 +62,11 @@ export function ExpenseForm() {
   useEffect(() => {
     if (!userId) return;
 
-    const accountsUnsub = onSnapshot(collection(db, `users/${userId}/accounts`), (snapshot) => {
+    const accountsUnsub = onSnapshot(collection(assertDb(), `users/${userId}/accounts`), (snapshot) => {
       setAccounts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Account)));
     });
 
-    const expensesUnsub = onSnapshot(collection(db, `users/${userId}/expenses`), (snapshot) => {
+    const expensesUnsub = onSnapshot(collection(assertDb(), `users/${userId}/expenses`), (snapshot) => {
         const categories = new Set(snapshot.docs.map(doc => doc.data().category as string));
         setExistingCategories(Array.from(categories));
     });
@@ -112,9 +112,9 @@ export function ExpenseForm() {
     setIsSubmitting(true);
     
      try {
-        const batch = writeBatch(db);
+  const batch = writeBatch(assertDb());
 
-        const expenseRef = doc(collection(db, `users/${userId}/expenses`));
+  const expenseRef = doc(collection(assertDb(), `users/${userId}/expenses`));
         
         const finalExpenseData: Omit<Expense, 'id'> = {
           ...values,
@@ -125,7 +125,7 @@ export function ExpenseForm() {
 
         batch.set(expenseRef, finalExpenseData);
 
-        const accountRef = doc(db, `users/${userId}/accounts`, values.paymentAccount);
+  const accountRef = doc(assertDb(), `users/${userId}/accounts`, values.paymentAccount);
         const accountSnap = await getDoc(accountRef);
         if (!accountSnap.exists()) {
           toast({ variant: "destructive", title: "Error", description: "La cuenta de pago no existe." });

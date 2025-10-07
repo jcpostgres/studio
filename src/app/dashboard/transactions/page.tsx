@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { Transaction } from "@/lib/types";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, doc, getDoc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { TransactionForm } from "@/components/transactions/transaction-form";
@@ -46,7 +46,7 @@ export default function TransactionsPage() {
   useEffect(() => {
     if (!userId) return;
 
-    const transactionsColRef = collection(db, `users/${userId}/transactions`);
+  const transactionsColRef = collection(assertDb(), `users/${userId}/transactions`);
     const unsubscribe = onSnapshot(
       transactionsColRef,
       (snapshot) => {
@@ -84,21 +84,21 @@ export default function TransactionsPage() {
   const confirmDelete = async () => {
     if (!userId || !transactionToDelete) return;
     try {
-        const batch = writeBatch(db);
+  const batch = writeBatch(assertDb());
         
         if (transactionToDelete.type === 'withdrawal' && transactionToDelete.account) {
-            const accountRef = doc(db, `users/${userId}/accounts`, transactionToDelete.account);
+            const accountRef = doc(assertDb(), `users/${userId}/accounts`, transactionToDelete.account);
             const accountSnap = await getDoc(accountRef);
             if (accountSnap.exists()) batch.update(accountRef, { balance: accountSnap.data().balance + transactionToDelete.amount });
         } else if (transactionToDelete.type === 'accountTransfer' && transactionToDelete.sourceAccount && transactionToDelete.destinationAccount) {
-            const sourceAccRef = doc(db, `users/${userId}/accounts`, transactionToDelete.sourceAccount);
-            const destAccRef = doc(db, `users/${userId}/accounts`, transactionToDelete.destinationAccount);
+            const sourceAccRef = doc(assertDb(), `users/${userId}/accounts`, transactionToDelete.sourceAccount);
+            const destAccRef = doc(assertDb(), `users/${userId}/accounts`, transactionToDelete.destinationAccount);
             const [sourceSnap, destSnap] = await Promise.all([getDoc(sourceAccRef), getDoc(destAccRef)]);
             if(sourceSnap.exists()) batch.update(sourceAccRef, { balance: sourceSnap.data().balance + transactionToDelete.amount });
             if(destSnap.exists()) batch.update(destAccRef, { balance: destSnap.data().balance - transactionToDelete.amount });
         }
         
-        const transactionRef = doc(db, `users/${userId}/transactions`, transactionToDelete.id);
+  const transactionRef = doc(assertDb(), `users/${userId}/transactions`, transactionToDelete.id);
         batch.delete(transactionRef);
 
         await batch.commit();

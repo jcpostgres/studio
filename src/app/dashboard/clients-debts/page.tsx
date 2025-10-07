@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import type { Income } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
@@ -27,7 +27,7 @@ export default function ClientsDebtsPage() {
     useEffect(() => {
         if (!userId) return;
         setLoading(true);
-        const q = query(collection(db, `users/${userId}/incomes`), orderBy("client"));
+    const q = query(collection(assertDb(), `users/${userId}/incomes`), orderBy("client"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             setIncomes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Income)));
             setLoading(false);

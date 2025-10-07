@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
-import { auth, db, messaging } from '@/lib/firebase';
+import { assertAuth, assertDb, assertMessaging } from '@/lib/firebase';
 import { PageHeader } from '@/components/layout/page-header';
 import { SettingsCard, SettingsItem, SettingsHeaderCard } from '@/components/settings/settings-card';
 import { useTheme } from '@/context/theme-context';
@@ -41,14 +41,14 @@ export default function SettingsPage() {
       if (typeof window !== 'undefined') {
         isSupported().then(supported => {
             setIsFcmSupported(supported);
-            if(supported && Notification.permission === 'granted' && userId) {
-                // Check if token exists in DB
-                const tokenRef = doc(db, `users/${userId}/fcmTokens`, navigator.userAgent);
-                getDoc(tokenRef).then(docSnap => {
-                    if (docSnap.exists()) {
-                        setNotificationsEnabled(true);
-                    }
-                });
+      if(supported && Notification.permission === 'granted' && userId) {
+        // Check if token exists in DB
+        const tokenRef = doc(assertDb(), `users/${userId}/fcmTokens`, navigator.userAgent);
+        getDoc(tokenRef).then(docSnap => {
+          if (docSnap.exists()) {
+            setNotificationsEnabled(true);
+          }
+        });
             } else {
                 setNotificationsEnabled(false);
             }
@@ -58,7 +58,7 @@ export default function SettingsPage() {
 
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await assertAuth().signOut();
     router.push('/login');
   };
 
@@ -67,8 +67,8 @@ export default function SettingsPage() {
   };
   
   const handleNotificationToggle = async (checked: boolean) => {
-    if (!isFcmSupported || !messaging || !userId) {
-        toast({ variant: "destructive", title: "No Soportado", description: "Las notificaciones no son soportadas en este navegador o la configuración de Firebase no está completa."});
+  if (!isFcmSupported || !userId) {
+    toast({ variant: "destructive", title: "No Soportado", description: "Las notificaciones no son soportadas en este navegador o la configuración de Firebase no está completa."});
         return;
     }
 
@@ -77,10 +77,10 @@ export default function SettingsPage() {
         try {
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
-                const fcmToken = await getToken(messaging, { vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY });
+        const fcmToken = await getToken(assertMessaging(), { vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY });
                 if (fcmToken) {
-                    const tokenRef = doc(db, `users/${userId}/fcmTokens`, navigator.userAgent);
-                    await setDoc(tokenRef, { token: fcmToken, createdAt: new Date().toISOString() });
+          const tokenRef = doc(assertDb(), `users/${userId}/fcmTokens`, navigator.userAgent);
+          await setDoc(tokenRef, { token: fcmToken, createdAt: new Date().toISOString() });
                     setNotificationsEnabled(true);
                     toast({ title: "¡Éxito!", description: "Notificaciones activadas para este dispositivo." });
                 } else {
@@ -96,7 +96,7 @@ export default function SettingsPage() {
     } else {
         // Disable notifications
         try {
-            const tokenRef = doc(db, `users/${userId}/fcmTokens`, navigator.userAgent);
+            const tokenRef = doc(assertDb(), `users/${userId}/fcmTokens`, navigator.userAgent);
             await deleteDoc(tokenRef);
             setNotificationsEnabled(false);
             toast({ title: "Notificaciones desactivadas", description: "Ya no recibirás notificaciones en este dispositivo." });

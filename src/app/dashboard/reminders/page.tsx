@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
+import { assertDb } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, writeBatch } from "firebase/firestore";
 import { Reminder, AdminPayment } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
@@ -25,8 +25,8 @@ export default function RemindersPage() {
     useEffect(() => {
         if (!userId) return;
 
-        const remindersRef = collection(db, `users/${userId}/reminders`);
-        const q = query(remindersRef, orderBy("dueDate", "asc"));
+    const remindersRef = collection(assertDb(), `users/${userId}/reminders`);
+    const q = query(remindersRef, orderBy("dueDate", "asc"));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedReminders = snapshot.docs.map(doc => {
@@ -51,7 +51,7 @@ export default function RemindersPage() {
     const handleMarkAsResolved = async (reminderId: string) => {
         if (!userId) return;
         try {
-            const reminderRef = doc(db, `users/${userId}/reminders`, reminderId);
+            const reminderRef = doc(assertDb(), `users/${userId}/reminders`, reminderId);
             await updateDoc(reminderRef, {
                 status: 'resolved',
                 resolvedAt: new Date().toISOString()
