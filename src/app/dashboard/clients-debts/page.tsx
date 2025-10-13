@@ -3,13 +3,13 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import type { Income } from "@/lib/types";
+import { getIncomes } from "@/lib/actions/db.actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DollarSign, Hash, TrendingUp, TrendingDown, User } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface ClientDebt {
     clientName: string;
@@ -21,19 +21,27 @@ interface ClientDebt {
 
 export default function ClientsDebtsPage() {
     const { userId } = useAuth();
+    const { toast } = useToast();
     const [loading, setLoading] = useState(true);
     const [incomes, setIncomes] = useState<Income[]>([]);
 
     useEffect(() => {
         if (!userId) return;
-        setLoading(true);
-    const q = query(collection(assertDb(), `users/${userId}/incomes`), orderBy("client"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setIncomes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Income)));
-            setLoading(false);
-        });
-        return () => unsubscribe();
-    }, [userId]);
+
+        async function fetchIncomes() {
+            setLoading(true);
+            try {
+                const fetchedIncomes = await getIncomes(userId);
+                setIncomes(fetchedIncomes);
+            } catch (error) {
+                console.error("Error fetching incomes for client debts:", error);
+                toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los datos de clientes." });
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchIncomes();
+    }, [userId, toast]);
 
     const clientDebts = useMemo<ClientDebt[]>(() => {
         const debtMap = new Map<string, ClientDebt>();

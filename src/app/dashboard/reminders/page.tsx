@@ -3,9 +3,8 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, writeBatch } from "firebase/firestore";
-import { Reminder, AdminPayment } from "@/lib/types";
+import { getReminders, markReminderAsResolved } from "@/lib/actions/db.actions";
+import type { Reminder, AdminPayment } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,43 +22,41 @@ export default function RemindersPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!userId) return;
-
-    const remindersRef = collection(assertDb(), `users/${userId}/reminders`);
-    const q = query(remindersRef, orderBy("dueDate", "asc"));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetchedReminders = snapshot.docs.map(doc => {
-                const data = doc.data() as Reminder;
-                return { 
-                    ...data, 
-                    id: doc.id,
-                    type: data.incomeId ? 'Ingreso' : 'Pago Administrativo'
-                } as CombinedReminder;
-            });
-            setReminders(fetchedReminders);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching reminders: ", error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los recordatorios." });
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+      if (!userId) return;
+  
+      async function fetchReminders() {
+        setLoading(true);
+        try {
+          const fetchedReminders = await getReminders(userId);
+          const combined = fetchedReminders.map(r => ({
+            ...r,
+            type: r.incomeId ? 'Ingreso' : 'Pago Administrativo'
+          } as CombinedReminder));
+          setReminders(combined);
+        } catch (error) {
+          console.error("Error fetching reminders: ", error);
+          toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los recordatorios." });
+        } finally {
+          setLoading(false);
+        }
+      }
+  
+      fetchReminders();
     }, [userId, toast]);
 
     const handleMarkAsResolved = async (reminderId: string) => {
         if (!userId) return;
         try {
-            const reminderRef = doc(assertDb(), `users/${userId}/reminders`, reminderId);
-            await updateDoc(reminderRef, {
-                status: 'resolved',
-                resolvedAt: new Date().toISOString()
-            });
-            toast({ title: "Éxito", description: "Recordatorio marcado como resuelto." });
-        } catch (error) {
+            const result = await markReminderAsResolved(userId, reminderId);
+            if (result.success) {
+                setReminders(reminders.map(r => r.id === reminderId ? { ...r, status: 'resolved' } : r));
+                toast({ title: "Éxito", description: "Recordatorio marcado como resuelto." });
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
             console.error("Error resolving reminder: ", error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el recordatorio." });
+            toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo actualizar el recordatorio." });
         }
     };
     

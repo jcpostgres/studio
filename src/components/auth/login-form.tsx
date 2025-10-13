@@ -20,7 +20,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { saveUserProfile } from "@/lib/actions/user.actions";
-import { auth } from "@/lib/firebase";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const formSchema = z.object({
@@ -87,17 +86,6 @@ export function LoginForm() {
   }
 
   const isLoading = isSubmitting || authLoading;
-
-  if (configError) {
-    return (
-        <Alert variant="destructive" className="mt-4">
-            <AlertTitle>Error de Configuración</AlertTitle>
-            <AlertDescription>
-                No se pudo conectar a Firebase. Asegúrate de que las variables de entorno (`NEXT_PUBLIC_FIREBASE_*`) estén correctamente configuradas en tu archivo `.env`. Puedes usar `.env.example` como plantilla.
-            </AlertDescription>
-        </Alert>
-    );
-  }
 
   return (
     <Form {...form}>

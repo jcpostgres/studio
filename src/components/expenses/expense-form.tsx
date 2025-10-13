@@ -16,11 +16,14 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, doc, getDoc, writeBatch } from "firebase/firestore";
 import type { Account, Expense } from "@/lib/types";
 import { suggestCategories } from "@/lib/actions/expenses.actions";
 import { cn } from "@/lib/utils";
+import {
+  getAccounts,
+  getExistingExpenseCategories,
+  saveExpense,
+} from "@/lib/actions/db.actions";
 
 const formSchema = z.object({
   date: z.string().min(1, "La fecha es requerida."),
@@ -62,19 +65,16 @@ export function ExpenseForm() {
   useEffect(() => {
     if (!userId) return;
 
-    const accountsUnsub = onSnapshot(collection(assertDb(), `users/${userId}/accounts`), (snapshot) => {
-      setAccounts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Account)));
-    });
+    async function fetchData() {
+      const [accountsData, categoriesData] = await Promise.all([
+        getAccounts(userId),
+        getExistingExpenseCategories(userId),
+      ]);
+      setAccounts(accountsData);
+      setExistingCategories(categoriesData);
+    }
 
-    const expensesUnsub = onSnapshot(collection(assertDb(), `users/${userId}/expenses`), (snapshot) => {
-        const categories = new Set(snapshot.docs.map(doc => doc.data().category as string));
-        setExistingCategories(Array.from(categories));
-    });
-
-    return () => {
-        accountsUnsub();
-        expensesUnsub();
-    };
+    fetchData();
   }, [userId]);
 
   const handleSuggestCategories = async () => {
@@ -111,40 +111,19 @@ export function ExpenseForm() {
     }
     setIsSubmitting(true);
     
-     try {
-  const batch = writeBatch(assertDb());
-
-  const expenseRef = doc(collection(assertDb(), `users/${userId}/expenses`));
-        
-        const finalExpenseData: Omit<Expense, 'id'> = {
-          ...values,
-          responsible: values.responsible || "",
-          observations: values.observations || "",
-          timestamp: new Date().toISOString(),
-        };
-
-        batch.set(expenseRef, finalExpenseData);
-
-  const accountRef = doc(assertDb(), `users/${userId}/accounts`, values.paymentAccount);
-        const accountSnap = await getDoc(accountRef);
-        if (!accountSnap.exists()) {
-          toast({ variant: "destructive", title: "Error", description: "La cuenta de pago no existe." });
-          setIsSubmitting(false);
-          return;
-        }
-        const currentBalance = accountSnap.data()?.balance || 0;
-        batch.update(accountRef, {
-            balance: currentBalance - values.amount
-        });
-
-        await batch.commit();
+    try {
+      const result = await saveExpense(userId, values);
+      if (result.success) {
         toast({ title: "Éxito", description: "Gasto registrado correctamente." });
         router.push("/dashboard/expenses");
-
-    } catch (error) {
-        console.error("Error al guardar el gasto:", error);
-        toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo guardar el gasto." });
-        setIsSubmitting(false);
+      } else {
+        throw new Error(result.message || "No se pudo guardar el gasto.");
+      }
+    } catch (error: any) {
+      console.error("Error al guardar el gasto:", error);
+      toast({ variant: "destructive", title: "Error al guardar", description: error.message });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 

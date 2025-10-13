@@ -14,8 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
-import { assertDb } from "@/lib/firebase";
-import { doc, collection, writeBatch, getDoc } from "firebase/firestore";
+import { savePayrollPayment } from "@/lib/actions/db.actions";
 
 const formSchema = z.object({
     date: z.string().min(1, "La fecha es requerida."),
@@ -59,54 +58,18 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
         setIsSubmitting(true);
         
         try {
-            const batch = writeBatch(assertDb());
-
-            // 1. Create Payroll Payment Record
-            const paymentRef = doc(collection(assertDb(), `users/${userId}/payrollPayments`));
-            const paymentToSave: Omit<PayrollPayment, 'id'> = {
-                employeeId: employee.id,
-                employeeName: employee.name,
-                paymentType,
-                month: selectedDate.month,
-                year: selectedDate.year,
-                totalAmount: values.totalAmount,
-                date: values.date,
-                observations: values.observations || "",
-                timestamp: new Date().toISOString(),
-                paymentAccount: values.paymentAccount,
-            };
-            batch.set(paymentRef, paymentToSave);
-
-            // 2. Create corresponding Expense record
-            const expenseRef = doc(collection(assertDb(), `users/${userId}/expenses`));
-            const expenseToSave: Omit<Expense, 'id'> = {
-                date: values.date,
-                type: 'fijo',
-                category: 'Nómina',
-                amount: values.totalAmount,
-                paymentAccount: values.paymentAccount,
-                responsible: 'Sistema',
-                observations: values.observations || `Pago de nómina a ${employee.name}. Ref: ${paymentRef.id}`,
-                timestamp: new Date().toISOString(),
-            };
-            batch.set(expenseRef, expenseToSave);
-
-            // 3. Update Account Balance
-            const accountRef = doc(assertDb(), `users/${userId}/accounts`, values.paymentAccount);
-            const accountSnap = await getDoc(accountRef);
-            if (!accountSnap.exists()) {
-                throw new Error("La cuenta de pago no existe.");
+            const result = await savePayrollPayment(userId, employee, paymentType, selectedDate, values);
+            
+            if (result.success) {
+                toast({ title: "Éxito", description: "Pago de nómina registrado como gasto exitosamente." });
+                onSuccess();
+                window.location.reload(); // Simple way to refresh data
+            } else {
+                throw new Error(result.message || "No se pudo registrar el pago.");
             }
-            const newBalance = accountSnap.data().balance - values.totalAmount;
-            batch.update(accountRef, { balance: newBalance });
-
-            await batch.commit();
-
-            toast({ title: "Éxito", description: "Pago de nómina registrado como gasto exitosamente." });
-            onSuccess();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error saving payroll payment:", error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudo registrar el pago." });
+            toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo registrar el pago." });
         } finally {
             setIsSubmitting(false);
         }

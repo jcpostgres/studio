@@ -3,15 +3,18 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { getPayrollReportData } from "@/lib/actions/db.actions";
 import type { Employee, PayrollPayment } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, Clock, Award, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DollarSign, TrendingUp, Clock, Award, Calendar, Download } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from 'jspdf-autotable';
+import { useToast } from "@/hooks/use-toast";
 
 interface EmployeeReport extends Employee {
     payments: PayrollPayment[];
@@ -20,6 +23,7 @@ interface EmployeeReport extends Employee {
 
 export default function PayrollReportPage() {
     const { userId } = useAuth();
+    const { toast } = useToast();
     const [loading, setLoading] = useState(true);
 
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -32,20 +36,21 @@ export default function PayrollReportPage() {
 
     useEffect(() => {
         if (!userId) return;
-        setLoading(true);
-        const unsubEmployees = onSnapshot(collection(assertDb(), `users/${userId}/employees`), (snap) => 
-            setEmployees(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Employee)))
-        );
-        const unsubPayments = onSnapshot(collection(assertDb(), `users/${userId}/payrollPayments`), (snap) => {
-            setAllPayments(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as PayrollPayment)));
-            setLoading(false);
-        });
-
-        return () => {
-            unsubEmployees();
-            unsubPayments();
-        };
-    }, [userId]);
+        async function loadPayrollData() {
+            setLoading(true);
+            try {
+                const { employees, allPayments } = await getPayrollReportData(userId);
+                setEmployees(employees);
+                setAllPayments(allPayments);
+            } catch (error) {
+                console.error("Error loading payroll report data:", error);
+                toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los datos del reporte de nómina." });
+            } finally {
+                setLoading(false);
+            }
+        }
+        loadPayrollData();
+    }, [userId, toast]);
 
     const filteredPayments = useMemo(() => {
         return allPayments.filter(p => p.month === selectedDate.month && p.year === selectedDate.year);
@@ -91,6 +96,47 @@ export default function PayrollReportPage() {
     }
 
     const formatCurrency = (amount: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+
+    const handleExportEmployeeReceiptPdf = (employeeReport: EmployeeReport) => {
+        if (employeeReport.payments.length === 0) {
+            toast({ variant: "destructive", title: "Sin Datos", description: `No hay pagos para ${employeeReport.name} en este mes.`});
+            return;
+        }
+
+        const doc = new jsPDF();
+        const monthName = new Date(selectedDate.year, selectedDate.month).toLocaleString('es-ES', { month: 'long' });
+        const year = selectedDate.year;
+
+        // Título y datos del empleado
+        doc.setFontSize(18);
+        doc.text(`Recibo de Pago - ${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`, 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Empleado: ${employeeReport.name}`, 14, 32);
+        doc.text(`Cédula: ${employeeReport.cedula}`, 14, 38);
+
+        // Tabla de pagos
+        const tableColumn = ["Fecha", "Concepto", "Monto"];
+        const tableRows: any[] = [];
+
+        employeeReport.payments.forEach(payment => {
+            const paymentData = [
+                new Date(payment.date).toLocaleDateString('es-ES'),
+                payment.paymentType === '4th' ? '1ra Quincena' : payment.paymentType === '20th' ? '2da Quincena' : 'Bono',
+                formatCurrency(payment.totalAmount)
+            ];
+            tableRows.push(paymentData);
+        });
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 45,
+            foot: [['', 'Total Pagado', formatCurrency(employeeReport.totalPaid)]],
+            footStyles: { fontStyle: 'bold', fillColor: [230, 230, 230], textColor: 20 },
+        });
+        
+        doc.save(`recibo_${employeeReport.name.replace(/ /g, '_')}_${monthName}_${year}.pdf`);
+    };
 
     const MetricCard = ({ title, value, icon: Icon, colorClass, loading }: { title: string, value: number, icon: React.ElementType, colorClass: string, loading: boolean }) => (
         <Card className="p-4 bg-card-foreground/5 rounded-xl flex flex-col justify-between">
@@ -142,6 +188,9 @@ export default function PayrollReportPage() {
                                     <div className="text-right">
                                         <p className="text-sm text-muted-foreground">Sueldo Mensual</p>
                                         <p className="font-bold text-lg text-cyan-400">{formatCurrency(emp.monthlySalary)}</p>
+                                        <Button variant="outline" size="sm" className="mt-2" onClick={() => handleExportEmployeeReceiptPdf(emp)}>
+                                            <Download className="mr-2 h-4 w-4" /> Descargar Recibo
+                                        </Button>
                                     </div>
                                 </div>
                                 

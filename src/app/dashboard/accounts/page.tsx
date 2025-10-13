@@ -6,9 +6,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, DollarSign, ArrowDown, Wallet, Landmark, Eye, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { Account, Transaction } from "@/lib/types";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import type { Account, Transaction } from "@/lib/types";
+import { getAccounts, getTransactions, saveAccount, deleteAccount } from "@/lib/actions/db.actions";
 import { useToast } from "@/hooks/use-toast";
 import { AccountForm } from "@/components/accounts/account-form";
 import {
@@ -46,25 +45,23 @@ export default function AccountsPage() {
   useEffect(() => {
     if (!userId) return;
 
-  const accountsUnsub = onSnapshot(collection(assertDb(), `users/${userId}/accounts`), (snapshot) => {
-      const fetchedAccounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
-      setAccounts(fetchedAccounts);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching accounts:", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las cuentas." });
-      setLoading(false);
-    });
-
-  const transactionsUnsub = onSnapshot(collection(assertDb(), `users/${userId}/transactions`), (snapshot) => {
-      const fetchedTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-      setTransactions(fetchedTransactions);
-    });
-
-    return () => {
-      accountsUnsub();
-      transactionsUnsub();
-    };
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [fetchedAccounts, fetchedTransactions] = await Promise.all([
+          getAccounts(userId),
+          getTransactions(userId),
+        ]);
+        setAccounts(fetchedAccounts);
+        setTransactions(fetchedTransactions);
+      } catch (error) {
+        console.error("Error fetching accounts data:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los datos." });
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
   }, [userId, toast]);
   
   const totalBalance = useMemo(() => accounts.reduce((sum, acc) => sum + acc.balance, 0), [accounts]);
@@ -83,10 +80,15 @@ export default function AccountsPage() {
   const confirmDelete = async () => {
     if (!userId || !accountToDelete) return;
     try {
-  await deleteDoc(doc(assertDb(), `users/${userId}/accounts`, accountToDelete.id));
+      const result = await deleteAccount(userId, accountToDelete.id);
+      if (result.success) {
+        setAccounts(accounts.filter(acc => acc.id !== accountToDelete.id));
         toast({ title: "Éxito", description: "Cuenta eliminada correctamente." });
-    } catch (error) {
-        toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar la cuenta." });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo eliminar la cuenta." });
         console.error("Error deleting account:", error);
     }
     setIsAlertOpen(false);
@@ -102,30 +104,21 @@ export default function AccountsPage() {
     if (!userId) return;
 
     try {
-        if (editingAccount) {
-            const accountDocRef = doc(assertDb(), `users/${userId}/accounts`, editingAccount.id);
-            await updateDoc(accountDocRef, {
-                name: values.name,
-                commission: values.commission / 100,
-                type: values.type,
-            });
-            toast({ title: "Éxito", description: "Cuenta actualizada correctamente." });
-        } else {
-            const newAccountRef = doc(collection(assertDb(), `users/${userId}/accounts`));
-            await setDoc(newAccountRef, {
-                id: newAccountRef.id,
-                name: values.name,
-                balance: values.balance,
-                commission: values.commission / 100,
-                type: values.type,
-            });
-            toast({ title: "Éxito", description: "Cuenta creada correctamente." });
-        }
+      const result = await saveAccount(userId, values, editingAccount?.id);
+      if (result.success) {
+        toast({ title: "Éxito", description: editingAccount ? "Cuenta actualizada." : "Cuenta creada." });
+        // Refetch data to show changes
+        const fetchedAccounts = await getAccounts(userId);
+        setAccounts(fetchedAccounts);
+      } else {
+        throw new Error(result.message);
+      }
+
         setIsDialogOpen(false);
         setEditingAccount(null);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving account:", error);
-        toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la cuenta." });
+        toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo guardar la cuenta." });
     }
   };
 

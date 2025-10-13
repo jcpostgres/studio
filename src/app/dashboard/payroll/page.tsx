@@ -1,11 +1,9 @@
-
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, doc, deleteDoc, writeBatch, query, where, getDocs } from "firebase/firestore";
 import type { Employee, PayrollPayment, Account, Expense } from "@/lib/types";
+import { getPayrollPageData, deleteEmployee as deleteEmployeeAction } from "@/lib/actions/db.actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit, Trash2, Calendar, CheckCircle, XCircle, Award } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EmployeeForm } from "@/components/payroll/employee-form";
+import { EmployeeForm } from "@/components/employees/employee-form";
 import { PayrollPaymentForm } from "@/components/payroll/payroll-payment-form";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -26,12 +24,11 @@ export default function PayrollPage() {
     const [payments, setPayments] = useState<PayrollPayment[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(true);
-
-    const [selectedDate, setSelectedDate] = useState({
+    const [selectedDate, setSelectedDate] = useState<{ month: number, year: number }>({
         month: new Date().getMonth(),
-        year: new Date().getFullYear()
+        year: new Date().getFullYear(),
     });
-    
+
     // Dialog states
     const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -42,57 +39,47 @@ export default function PayrollPage() {
     const [isAlertOpen, setIsAlertOpen] = useState(false);
     const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
-    useEffect(() => {
+    const loadData = useCallback(async () => {
         if (!userId) return;
-    const unsubEmployees = onSnapshot(collection(assertDb(), `users/${userId}/employees`), snap => {
-            setEmployees(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
+        setLoading(true);
+        try {
+            const { employees, payments, accounts } = await getPayrollPageData(userId);
+            setEmployees(employees);
+            setPayments(payments);
+            setAccounts(accounts);
+        } catch (error) {
+            console.error("Error loading payroll data:", error);
+            toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los datos de nómina." });
+        } finally {
             setLoading(false);
-        });
-    const unsubPayments = onSnapshot(collection(assertDb(), `users/${userId}/payrollPayments`), snap => {
-            setPayments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollPayment)));
-        });
-    const unsubAccounts = onSnapshot(collection(assertDb(), `users/${userId}/accounts`), snap => {
-            setAccounts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account)));
-        });
+        }
+    }, [userId, toast]);
 
-        return () => {
-            unsubEmployees();
-            unsubPayments();
-            unsubAccounts();
-        };
-    }, [userId]);
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
     
     const employeePaymentStatus = useMemo(() => {
         const statusMap = new Map<string, { payment4th: boolean, payment20th: boolean }>();
-        employees.forEach(emp => {
-            const empPayments = payments.filter(p => 
-                p.employeeId === emp.id && 
-                p.month === selectedDate.month && 
-                p.year === selectedDate.year
-            );
-            statusMap.set(emp.id, {
-                payment4th: empPayments.some(p => p.paymentType === '4th'),
-                payment20th: empPayments.some(p => p.paymentType === '20th'),
-            });
+        const filteredPayments = payments.filter(p => p.month === selectedDate.month && p.year === selectedDate.year);
+        
+        employees.forEach(employee => {
+            const has4th = filteredPayments.some(p => p.employeeId === employee.id && p.paymentType === '4th');
+            const has20th = filteredPayments.some(p => p.employeeId === employee.id && p.paymentType === '20th');
+            statusMap.set(employee.id, { payment4th: has4th, payment20th: has20th });
         });
         return statusMap;
     }, [employees, payments, selectedDate]);
-
-    const availableDates = useMemo(() => {
-        const dates = new Set(payments.map(p => `${p.month}-${p.year}`));
-        const currentMonth = new Date().getMonth();
-        const currentYear = new Date().getFullYear();
-        dates.add(`${currentMonth}-${currentYear}`);
-        return Array.from(dates).map(d => {
-            const [month, year] = d.split('-').map(Number);
-            return { month, year, label: new Date(year, month).toLocaleString('es-ES', { month: 'long', year: 'numeric' }) };
-        }).sort((a,b) => new Date(b.year, b.month).getTime() - new Date(a.year, a.month).getTime());
-    }, [payments]);
-
+    
     const handleDateChange = (value: string) => {
         const [month, year] = value.split('-').map(Number);
         setSelectedDate({ month, year });
     }
+    
+    const handleRegisterPayment = (employee: Employee, paymentType: '4th' | '20th' | 'bonus') => {
+        setPaymentContext({ employee, paymentType });
+        setIsPaymentDialogOpen(true);
+    };
 
     const handleEditEmployee = (employee: Employee) => {
         setEditingEmployee(employee);
@@ -107,36 +94,20 @@ export default function PayrollPage() {
     const confirmDeleteEmployee = async () => {
         if (!userId || !employeeToDelete) return;
         try {
-            const batch = writeBatch(assertDb());
-            
-            const employeeRef = doc(assertDb(), `users/${userId}/employees`, employeeToDelete.id);
-            batch.delete(employeeRef);
-
-            const paymentsQuery = query(collection(assertDb(), `users/${userId}/payrollPayments`), where("employeeId", "==", employeeToDelete.id));
-            const paymentsSnap = await getDocs(paymentsQuery);
-            paymentsSnap.forEach(paymentDoc => batch.delete(paymentDoc.ref));
-
-            await batch.commit();
-            toast({ title: "Éxito", description: "Empleado y sus pagos han sido eliminados." });
-        } catch (error) {
+            const result = await deleteEmployeeAction(userId, employeeToDelete.id);
+            if (result.success) {
+                setEmployees(employees.filter(e => e.id !== employeeToDelete.id));
+                toast({ title: "Éxito", description: "Empleado y sus pagos han sido eliminados." });
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
             console.error("Error deleting employee:", error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar al empleado." });
+            toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo eliminar al empleado." });
         }
         setIsAlertOpen(false);
         setEmployeeToDelete(null);
     };
-
-    const openNewEmployeeDialog = () => {
-        setEditingEmployee(null);
-        setIsEmployeeDialogOpen(true);
-    };
-    
-    const handleRegisterPayment = (employee: Employee, paymentType: '4th' | '20th' | 'bonus') => {
-        setPaymentContext({ employee, paymentType });
-        setIsPaymentDialogOpen(true);
-    };
-    
-    const formatCurrency = (amount: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
 
     return (
         <>
@@ -144,96 +115,66 @@ export default function PayrollPage() {
               title="Gestión de Nómina"
               description="Administra empleados y registra los pagos."
             >
-              <Button onClick={openNewEmployeeDialog} size="icon" className="rounded-full h-10 w-10">
-                <PlusCircle className="h-5 w-5" />
+              <Button onClick={() => setIsEmployeeDialogOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Nuevo Empleado
               </Button>
             </PageHeader>
             
-            <div className="mt-4 flex justify-start">
-                <Select
-                  value={`${selectedDate.month}-${selectedDate.year}`}
-                  onValueChange={handleDateChange}
-                  disabled={loading}
-                >
-                  <SelectTrigger className="w-[200px]">
-                    <Calendar className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Seleccionar Mes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableDates.map((d) => (
-                      <SelectItem
-                        key={`${d.month}-${d.year}`}
-                        value={`${d.month}-${d.year}`}
-                      >
-                        {d.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-            </div>
-            
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-1 gap-6">
-                 {loading ? (
-                    [...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
-                ) : employees.length > 0 ? (
-                    employees.map(employee => {
-                        const status = employeePaymentStatus.get(employee.id) || { payment4th: false, payment20th: false };
-                        return (
-                            <Card key={employee.id} className="p-4 bg-card-foreground/5 rounded-xl flex flex-col">
-                                <div>
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="font-bold text-lg text-cyan-400">{employee.name}</h3>
-                                        <div className="flex items-center gap-1">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditEmployee(employee)}><Edit className="h-4 w-4"/></Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDeleteEmployee(employee)}><Trash2 className="h-4 w-4"/></Button>
-                                        </div>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">{employee.paymentMethod}: {employee.bank}</p>
-                                    
-                                    <div className="my-2 text-center">
-                                        <div className="p-2 bg-background/50 rounded-lg">
-                                            <p className="text-xs text-muted-foreground">Sueldo Mensual</p>
-                                            <p className="font-semibold">{formatCurrency(employee.monthlySalary)}</p>
-                                        </div>
-                                    </div>
+            <div className="mt-8">
+                <div className="flex justify-end mb-4">
+                    <Select value={`${selectedDate.month}-${selectedDate.year}`} onValueChange={handleDateChange} disabled={loading}>
+                        <SelectTrigger className="w-[180px]">
+                            <Calendar className="mr-2 h-4 w-4" />
+                            <SelectValue placeholder="Seleccionar Mes" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {/* This should be populated with available dates */}
+                            <SelectItem value={`${new Date().getMonth()}-${new Date().getFullYear()}`}>{new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
 
-                                    <div className="space-y-2 mt-4">
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-2">
-                                                {status.payment4th ? <CheckCircle className="h-5 w-5 text-green-400"/> : <XCircle className="h-5 w-5 text-yellow-400"/>}
-                                                <span>Pago Día 4</span>
+                {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {employees.map(employee => {
+                            const status = employeePaymentStatus.get(employee.id) || { payment4th: false, payment20th: false };
+                            return (
+                                <Card key={employee.id} className="p-4 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex justify-between items-start">
+                                            <h3 className="font-bold text-lg text-cyan-400">{employee.name}</h3>
+                                            <div className="flex items-center gap-1">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditEmployee(employee)}><Edit className="h-4 w-4"/></Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDeleteEmployee(employee)}><Trash2 className="h-4 w-4"/></Button>
                                             </div>
-                                            <Button size="sm" variant={status.payment4th ? "outline" : "default"} disabled={status.payment4th} onClick={() => handleRegisterPayment(employee, '4th')}>
-                                               {status.payment4th ? "Pagado" : "Pagar"}
-                                            </Button>
                                         </div>
-                                         <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-2">
-                                                 {status.payment20th ? <CheckCircle className="h-5 w-5 text-green-400"/> : <XCircle className="h-5 w-5 text-yellow-400"/>}
-                                                <span>Pago Día 20</span>
+                                        <p className="text-sm text-muted-foreground">{employee.paymentMethod}: {employee.bank}</p>
+                                        
+                                        <div className="my-4 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm">Pago día 4:</span>
+                                                {status.payment4th ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
                                             </div>
-                                            <Button size="sm" variant={status.payment20th ? "outline" : "default"} disabled={status.payment20th} onClick={() => handleRegisterPayment(employee, '20th')}>
-                                                {status.payment20th ? "Pagado" : "Pagar"}
-                                            </Button>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-2">
-                                                <Award className="h-5 w-5 text-yellow-400"/>
-                                                <span>Bono Adicional</span>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm">Pago día 19:</span>
+                                                {status.payment20th ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
                                             </div>
-                                            <Button size="sm" variant={"default"} onClick={() => handleRegisterPayment(employee, 'bonus')}>
-                                               Pagar Bono
-                                            </Button>
                                         </div>
                                     </div>
-                                </div>
-                            </Card>
-                        )
-                    })
-                ) : (
-                    <Card className="md:col-span-1 flex items-center justify-center h-40">
-                        <p className="text-muted-foreground">No tienes empleados. ¡Agrega uno para empezar!</p>
-                    </Card>
+                                    <div className="space-y-2 mt-auto">
+                                        <Button className="w-full" onClick={() => handleRegisterPayment(employee, '4th')} disabled={status.payment4th}>Pagar 1ra Quincena</Button>
+                                        <Button className="w-full" onClick={() => handleRegisterPayment(employee, '20th')} disabled={status.payment20th}>Pagar 2da Quincena</Button>
+                                        <Button variant="outline" className="w-full" onClick={() => handleRegisterPayment(employee, 'bonus')}><Award className="mr-2 h-4 w-4" />Pagar Bono</Button>
+                                    </div>
+                                </Card>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
 
@@ -248,7 +189,7 @@ export default function PayrollPage() {
                     </DialogHeader>
                     <EmployeeForm
                         employeeToEdit={editingEmployee}
-                        onSuccess={() => setIsEmployeeDialogOpen(false)}
+                        onSuccess={() => { setIsEmployeeDialogOpen(false); loadData(); }}
                     />
                 </DialogContent>
             </Dialog>
@@ -260,12 +201,7 @@ export default function PayrollPage() {
             }}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>
-                            {paymentContext?.paymentType === 'bonus' 
-                                ? `Registrar Bono a ${paymentContext?.employee.name}`
-                                : `Registrar Pago a ${paymentContext?.employee.name}`
-                            }
-                        </DialogTitle>
+                        <DialogTitle>Registrar Pago de Nómina</DialogTitle>
                     </DialogHeader>
                      {paymentContext && (
                         <PayrollPaymentForm
@@ -273,7 +209,10 @@ export default function PayrollPage() {
                             paymentType={paymentContext.paymentType}
                             selectedDate={selectedDate}
                             accounts={accounts}
-                            onSuccess={() => setIsPaymentDialogOpen(false)}
+                            onSuccess={() => {
+                                setIsPaymentDialogOpen(false);
+                                loadData(); // Recargar datos después de un pago exitoso
+                            }}
                         />
                      )}
                 </DialogContent>

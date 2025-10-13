@@ -3,15 +3,16 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
 import type { Income, Expense, Transaction, PayrollPayment } from "@/lib/types";
+import { getDashboardData } from "@/lib/actions/db.actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, DollarSign, Minus, Calendar, Users, Download } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 
 export default function TotalGeneralPage() {
@@ -27,31 +28,25 @@ export default function TotalGeneralPage() {
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
 
     useEffect(() => {
-        if (!userId || !db) return;
-        setLoading(true);
-
-        const unsubIncomes = onSnapshot(collection(db, `users/${userId}/incomes`), (snap) => 
-            setAllIncomes(snap.docs.map(doc => ({...doc.data(), id: doc.id} as Income)))
-        );
-        const unsubExpenses = onSnapshot(collection(db, `users/${userId}/expenses`), (snap) => 
-            setAllExpenses(snap.docs.map(doc => ({...doc.data(), id: doc.id} as Expense)))
-        );
-        const unsubTransactions = onSnapshot(collection(db, `users/${userId}/transactions`), (snap) => 
-            setAllTransactions(snap.docs.map(doc => ({...doc.data(), id: doc.id} as Transaction)))
-        );
-        const unsubPayroll = onSnapshot(collection(db, `users/${userId}/payrollPayments`), (snap) => {
-            setAllPayrollPayments(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as PayrollPayment)));
-            setLoading(false);
-        });
-
-        return () => {
-            unsubIncomes();
-            unsubExpenses();
-            unsubTransactions();
-            unsubPayroll();
-        };
-
-    }, [userId]);
+        if (!userId) return;
+        
+        async function loadData() {
+            setLoading(true);
+            try {
+                const { allIncomes, allExpenses, allTransactions, allPayrollPayments } = await getDashboardData(userId);
+                setAllIncomes(allIncomes.map(inc => ({ ...inc, servicesDetails: JSON.parse(inc.servicesDetails as any) })));
+                setAllExpenses(allExpenses);
+                setAllTransactions(allTransactions);
+                setAllPayrollPayments(allPayrollPayments);
+            } catch (error) {
+                console.error("Error loading general data:", error);
+                toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los datos generales." });
+            } finally {
+                setLoading(false);
+            }
+        }
+        loadData();
+    }, [userId, toast]);
 
     const filteredData = useMemo(() => {
         const parseDate = (dateString: string) => new Date(`${dateString}T00:00:00`);
@@ -133,38 +128,102 @@ export default function TotalGeneralPage() {
 
     const formatCurrency = (amount: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
     
-    const handleExport = (data: any[], fileName: string) => {
-        if (data.length === 0) {
-            toast({ variant: "destructive", title: "Sin Datos", description: `No hay datos para exportar en ${fileName}.`});
+    const handleExportIncomesPdf = () => {
+        if (filteredData.incomes.length === 0) {
+            toast({ variant: "destructive", title: "Sin Datos", description: `No hay ingresos para exportar en el año ${filterYear}.`});
             return;
         }
 
-        // Create CSV content
-        const headers = Object.keys(data[0]);
-        const csvContent = [
-            headers.join(','),
-            ...data.map(row => headers.map(header => {
-                let value = row[header];
-                if (typeof value === 'string' && value.includes(',')) {
-                    return `"${value}"`;
-                }
-                if (typeof value === 'object' && value !== null) {
-                    return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
-                }
-                return value;
-            }).join(','))
-        ].join('\n');
+        const doc = new jsPDF();
+        const tableColumn = ["Fecha", "Cliente", "Servicios", "Monto Pagado"];
+        const tableRows: any[] = [];
 
-        // Create a Blob and download link
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${fileName}_${filterYear}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast({ title: "Éxito", description: "La descarga de tu reporte ha comenzado."});
+        filteredData.incomes.forEach(income => {
+            const incomeData = [
+                new Date(income.date).toLocaleDateString('es-ES'),
+                income.client,
+                income.servicesDetails.map(s => s.name).join(', '),
+                formatCurrency(income.amountPaid)
+            ];
+            tableRows.push(incomeData);
+        });
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 20,
+        });
+        
+        doc.text(`Reporte de Ingresos - Año ${filterYear}`, 14, 15);
+        doc.save(`ingresos_${filterYear}.pdf`);
+        toast({ title: "Éxito", description: "La descarga de tu reporte de ingresos ha comenzado."});
+    };
+
+    const handleExportExpensesPdf = () => {
+        const allExpensesData = [
+            ...filteredData.expenses.map(e => ({ ...e, concept: e.category })),
+            ...filteredData.payrollPayments.map(p => ({ ...p, amount: p.totalAmount, concept: `Nómina - ${p.employeeName}` }))
+        ];
+
+        if (allExpensesData.length === 0) {
+            toast({ variant: "destructive", title: "Sin Datos", description: `No hay gastos para exportar en el año ${filterYear}.`});
+            return;
+        }
+
+        const doc = new jsPDF();
+        const tableColumn = ["Fecha", "Concepto", "Monto"];
+        const tableRows: any[] = [];
+
+        allExpensesData.forEach(expense => {
+            const expenseData = [
+                new Date(expense.date).toLocaleDateString('es-ES'),
+                expense.concept,
+                formatCurrency(expense.amount)
+            ];
+            tableRows.push(expenseData);
+        });
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 20,
+        });
+        
+        doc.text(`Reporte de Gastos - Año ${filterYear}`, 14, 15);
+        doc.save(`gastos_${filterYear}.pdf`);
+        toast({ title: "Éxito", description: "La descarga de tu reporte de gastos ha comenzado."});
+    };
+
+    const handleExportPayrollPdf = () => {
+        if (filteredData.payrollPayments.length === 0) {
+            toast({ variant: "destructive", title: "Sin Datos", description: `No hay datos de nómina para exportar en el año ${filterYear}.`});
+            return;
+        }
+
+        const doc = new jsPDF();
+        const tableColumn = ["Fecha", "Nombre Empleado", "Tipo de Pago", "Monto Total"];
+        const tableRows: any[] = [];
+
+        filteredData.payrollPayments.forEach(payment => {
+            const paymentData = [
+                new Date(payment.date).toLocaleDateString('es-ES'),
+                payment.employeeName,
+                payment.paymentType === '4th' ? '1ra Quincena' : payment.paymentType === '20th' ? '2da Quincena' : 'Bono',
+                formatCurrency(payment.totalAmount)
+            ];
+            tableRows.push(paymentData);
+        });
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 20,
+        });
+        
+        doc.text(`Reporte de Nómina - Año ${filterYear}`, 14, 15);
+        doc.save(`nomina_${filterYear}.pdf`);
+
+        toast({ title: "Éxito", description: "La descarga de tu reporte PDF ha comenzado."});
     };
 
 
@@ -243,14 +302,14 @@ export default function TotalGeneralPage() {
                     <CardDescription>Descarga los datos del año seleccionado en formato CSV.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Button onClick={() => handleExport(filteredData.incomes, 'ingresos')} disabled={loading}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar Ingresos
+                    <Button onClick={handleExportIncomesPdf} disabled={loading}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar Ingresos (PDF)
                     </Button>
-                    <Button onClick={() => handleExport(filteredData.expenses, 'gastos')} disabled={loading}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar Gastos
+                    <Button onClick={handleExportExpensesPdf} disabled={loading}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar Gastos (PDF)
                     </Button>
-                    <Button onClick={() => handleExport(filteredData.payrollPayments, 'nomina')} disabled={loading}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar Nómina
+                    <Button onClick={handleExportPayrollPdf} disabled={loading}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar Nómina (PDF)
                     </Button>
                 </CardContent>
              </Card>

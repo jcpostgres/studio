@@ -3,8 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, query, where, orderBy, doc, deleteDoc } from "firebase/firestore";
+import { getAdminPayments, deleteAdminPayment } from "@/lib/actions/db.actions";
 import type { AdminPayment } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -35,35 +34,22 @@ export default function AdminPaymentsPage() {
     const categories = ["Todos", "Servicios Básicos", "Alquiler", "Seguros", "Préstamos/Créditos", "Suscripciones/Membresías", "Impuestos", "Otros"];
 
     useEffect(() => {
-        if (!userId) return;
-
-    const baseQuery = collection(assertDb(), `users/${userId}/adminPayments`);
-        let q = query(baseQuery, orderBy("conceptName", "asc"));
-
-        if (filterCategory !== "Todos") {
-            q = query(q, where("category", "==", filterCategory));
+      if (!userId) return;
+  
+      async function fetchPayments() {
+        setLoading(true);
+        try {
+          const fetchedPayments = await getAdminPayments(userId, filterCategory, searchTerm);
+          setPayments(fetchedPayments);
+        } catch (error: any) {
+          console.error("Error fetching admin payments:", error);
+          toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los registros." });
+        } finally {
+          setLoading(false);
         }
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            let fetchedPayments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminPayment));
-            
-            if (searchTerm) {
-                fetchedPayments = fetchedPayments.filter(p => 
-                    p.conceptName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    (p.providerName && p.providerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                    (p.contractNumber && p.contractNumber.toLowerCase().includes(searchTerm.toLowerCase()))
-                );
-            }
-            
-            setPayments(fetchedPayments);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching admin payments:", error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los registros." });
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+      }
+  
+      fetchPayments();
     }, [userId, searchTerm, filterCategory, toast]);
 
     const handleEdit = (payment: AdminPayment) => {
@@ -79,11 +65,16 @@ export default function AdminPaymentsPage() {
     const confirmDelete = async () => {
         if (!userId || !paymentToDelete) return;
         try {
-            await deleteDoc(doc(assertDb(), `users/${userId}/adminPayments`, paymentToDelete.id));
-            toast({ title: "Éxito", description: "Registro eliminado correctamente." });
-        } catch (error) {
+            const result = await deleteAdminPayment(userId, paymentToDelete.id);
+            if (result.success) {
+                setPayments(payments.filter(p => p.id !== paymentToDelete.id));
+                toast({ title: "Éxito", description: "Registro eliminado correctamente." });
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
             console.error("Error deleting admin payment:", error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el registro." });
+            toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo eliminar el registro." });
         }
         setIsAlertOpen(false);
         setPaymentToDelete(null);

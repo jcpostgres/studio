@@ -1,33 +1,27 @@
+// src/lib/actions/user.actions.ts (versión adaptada para SQLite)
 "use server";
 
-import { doc, setDoc } from "firebase/firestore";
-import { assertDb } from "@/lib/firebase";
-import { z } from "zod";
+import { assertDb } from "@/lib/db";
 
-const UserProfileSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
-  name: z.string().min(2, "Name is required"),
-  email: z.string().email("Invalid email address"),
-});
+interface UserProfilePayload {
+  userId: string;
+  name: string;
+  email: string;
+}
 
-export async function saveUserProfile(
-  data: z.infer<typeof UserProfileSchema>
-) {
+export async function saveUserProfile(payload: UserProfilePayload) {
   try {
-    const validatedData = UserProfileSchema.parse(data);
-    const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "default-app-id";
-
-    const userDocRef = doc(
-      assertDb(),
-      `artifacts/${appId}/users/${validatedData.userId}/profile`,
-      "userProfile"
+    const db = await assertDb();
+    // `INSERT OR REPLACE` actualiza si el usuario ya existe, o lo inserta si es nuevo.
+    await db.run(
+      "INSERT OR REPLACE INTO users (id, name, email) VALUES (?, ?, ?)",
+      payload.userId,
+      payload.name,
+      payload.email
     );
-    await setDoc(userDocRef, { name: validatedData.name, email: validatedData.email }, { merge: true });
-
-    return { success: true, message: "Profile saved successfully." };
-  } catch (error) {
+    return { success: true };
+  } catch (error: any) {
     console.error("Error saving user profile:", error);
-    const errorMessage = error instanceof z.ZodError ? error.errors.map(e => e.message).join(', ') : "Failed to save profile.";
-    return { success: false, message: errorMessage };
+    return { success: false, message: error.message };
   }
 }

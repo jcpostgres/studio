@@ -15,8 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Loader2 } from "lucide-react";
-import { assertDb } from "@/lib/firebase";
-import { doc, setDoc, writeBatch, collection, getDoc } from "firebase/firestore";
+import { saveAdminPayment } from "@/lib/actions/db.actions";
 
 const adminPaymentSchema = z.object({
     conceptName: z.string().min(2, "El nombre del concepto es requerido."),
@@ -85,60 +84,19 @@ export function AdminPaymentForm({ paymentToEdit, onSuccess }: AdminPaymentFormP
         setIsSubmitting(true);
         
         try {
-            const batch = writeBatch(assertDb());
-    
-            const docRef = paymentToEdit
-                ? doc(assertDb(), `users/${userId}/adminPayments`, paymentToEdit.id)
-                : doc(collection(assertDb(), `users/${userId}/adminPayments`));
-    
-            const existingDataSnap = paymentToEdit ? await getDoc(docRef) : null;
-            const existingData = existingDataSnap?.data();
-    
-            const dataToSave: Omit<AdminPayment, 'id'> = {
-                ...values,
-                paymentDueDate: values.paymentDueDate || null,
-                renewalDate: values.renewalDate || null,
-                createdAt: existingData?.createdAt || new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            };
-    
-            batch.set(docRef, dataToSave, { merge: true });
-    
-            // --- REMINDER LOGIC ---
-            const reminderRef = doc(assertDb(), `users/${userId}/reminders`, docRef.id);
-            if (dataToSave.paymentDueDate) {
-                const reminderMessage = `Recordatorio de Pago: ${dataToSave.conceptName} vence el ${new Date(dataToSave.paymentDueDate).toLocaleDateString()}.`;
-                const reminderData: Omit<Reminder, 'id'> = {
-                    incomeId: null,
-                    adminPaymentId: docRef.id,
-                    clientId: dataToSave.providerName,
-                    brandName: dataToSave.conceptName,
-                    service: dataToSave.category,
-                    renewalAmount: dataToSave.paymentAmount || 0,
-                    debtAmount: 0,
-                    dueDate: dataToSave.paymentDueDate,
-                    status: 'pending',
-                    contact: '',
-                    message: reminderMessage,
-                    timestamp: new Date().toISOString(),
-                    resolvedAt: null,
-                };
-                batch.set(reminderRef, reminderData, { merge: true });
+            const result = await saveAdminPayment(userId, values, paymentToEdit?.id);
+
+            if (result.success) {
+                toast({ title: "Éxito", description: "Registro guardado correctamente." });
+                onSuccess();
+                // Consider reloading data on the parent page instead of a full page reload
+                window.location.reload();
             } else {
-                 // If due date was removed or is not present, delete the associated reminder
-                const reminderSnap = await getDoc(reminderRef);
-                if (reminderSnap.exists()) {
-                    batch.delete(reminderRef);
-                }
+                throw new Error(result.message || "No se pudo guardar el registro.");
             }
-            
-            await batch.commit();
-    
-            toast({ title: "Éxito", description: "Registro guardado correctamente." });
-            onSuccess();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error saving admin payment:", error);
-            toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo guardar el registro." });
+            toast({ variant: "destructive", title: "Error al guardar", description: error.message || "No se pudo guardar el registro." });
         } finally {
             setIsSubmitting(false);
         }

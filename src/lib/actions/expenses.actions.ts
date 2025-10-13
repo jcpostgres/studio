@@ -1,11 +1,7 @@
 
 "use server";
 
-import { doc, writeBatch, collection, getDoc } from "firebase/firestore";
-import { z } from "zod";
 import { suggestExpenseCategories } from "@/ai/flows/suggest-expense-categories";
-import { db } from "@/lib/firebase";
-import { Expense } from "@/lib/types";
 
 export async function suggestCategories(description: string) {
   if (!description) {

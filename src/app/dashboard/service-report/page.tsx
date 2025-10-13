@@ -3,15 +3,15 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
 import type { Income, IncomeServiceDetail } from "@/lib/types";
+import { getIncomes } from "@/lib/actions/db.actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { TrendingUp, ClipboardList, Calendar } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface MonthlyBreakdown {
     month: number;
@@ -29,20 +29,29 @@ interface ServiceReport {
 
 export default function ServiceReportPage() {
     const { userId } = useAuth();
+    const { toast } = useToast();
     const [loading, setLoading] = useState(true);
     
     const [allIncomes, setAllIncomes] = useState<Income[]>([]);
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
 
     useEffect(() => {
-        if (!userId || !db) return;
-        setLoading(true);
-        const unsubIncomes = onSnapshot(collection(db, `users/${userId}/incomes`), (snap) => {
-            setAllIncomes(snap.docs.map(doc => ({...doc.data(), id: doc.id} as Income)));
-            setLoading(false);
-        });
-        return () => unsubIncomes();
-    }, [userId]);
+        if (!userId) return;
+
+        async function fetchIncomes() {
+            setLoading(true);
+            try {
+                const fetchedIncomes = await getIncomes(userId);
+                setAllIncomes(fetchedIncomes);
+            } catch (error) {
+                console.error("Error fetching incomes for report:", error);
+                toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los datos para el reporte." });
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchIncomes();
+    }, [userId, toast]);
 
     const filteredIncomes = useMemo(() => {
         const parseDate = (dateString: string) => new Date(`${dateString}T00:00:00`);

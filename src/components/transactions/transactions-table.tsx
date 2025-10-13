@@ -19,14 +19,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal, Pencil, Trash2, ArrowRight } from "lucide-react";
-import { Account, Transaction } from "@/lib/types";
+import type { Transaction } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
 
 interface TransactionsTableProps {
   transactions: Transaction[];
+  accountsMap: Map<string, string>;
   onEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
   loading: boolean;
@@ -34,29 +32,11 @@ interface TransactionsTableProps {
 
 export function TransactionsTable({
   transactions,
+  accountsMap,
   onEdit,
   onDelete,
   loading,
 }: TransactionsTableProps) {
-  const { userId } = useAuth();
-  const [accountsMap, setAccountsMap] = useState<Map<string, string>>(new Map());
-
-  useEffect(() => {
-    if (!userId) return;
-    const accountsRef = collection(assertDb(), `users/${userId}/accounts`);
-    const unsubscribe = onSnapshot(accountsRef, (snapshot) => {
-      const newAccountsMap = new Map<string, string>();
-      snapshot.forEach(doc => {
-        const account = doc.data() as Account;
-        newAccountsMap.set(doc.id, account.name);
-      });
-      setAccountsMap(newAccountsMap);
-    });
-
-    return () => unsubscribe();
-  }, [userId]);
-
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",

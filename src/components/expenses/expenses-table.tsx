@@ -13,39 +13,18 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { Expense, Account } from "@/lib/types";
+import type { Expense } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useEffect } from "react";
-import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
 
 interface ExpensesTableProps {
   expenses: Expense[];
+  accountsMap: Map<string, string>;
   onEdit: (expenseId: string) => void;
   onDelete: (expense: Expense) => void;
   loading: boolean;
 }
 
-export function ExpensesTable({ expenses, onEdit, onDelete, loading }: ExpensesTableProps) {
-  const { userId } = useAuth();
-  const [accountsMap, setAccountsMap] = useState<Map<string, string>>(new Map());
-
-    useEffect(() => {
-    if (!userId) return;
-    const accountsRef = collection(assertDb(), `users/${userId}/accounts`);
-    const unsubscribe = onSnapshot(accountsRef, (snapshot) => {
-      const newAccountsMap = new Map<string, string>();
-      snapshot.forEach(doc => {
-        const account = doc.data() as Account;
-        newAccountsMap.set(doc.id, account.name);
-      });
-      setAccountsMap(newAccountsMap);
-    });
-
-    return () => unsubscribe();
-  }, [userId]);
-  
+export function ExpensesTable({ expenses, accountsMap, onEdit, onDelete, loading }: ExpensesTableProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
   };

@@ -3,9 +3,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
-import { useAuth } from "@/context/auth-context";
-import { assertDb } from "@/lib/firebase";
+import { useAuth } from "@/context/auth-context"; 
+import { getIncomeForEdit } from "@/lib/actions/db.actions";
 import type { Income } from "@/lib/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { IncomeForm } from "@/components/incomes/income-form";
@@ -26,10 +25,10 @@ export default function EditIncomePage() {
 
     const fetchIncome = async () => {
       try {
-  const incomeDocRef = doc(assertDb(), `users/${userId}/incomes`, id);
-  const docSnap = await getDoc(incomeDocRef);
-        if (docSnap.exists()) {
-          setIncome({ id: docSnap.id, ...docSnap.data() } as Income);
+        const incomeData = await getIncomeForEdit(userId, id);
+
+        if (incomeData) {
+          setIncome(incomeData);
         } else {
           setError("No se encontró el ingreso.");
         }

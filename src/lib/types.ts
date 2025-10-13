@@ -46,7 +46,7 @@ export interface Employee {
     bank: string;
     biWeeklySalary: number;
     monthlySalary: number;
-    paymentMethod: string;
+    paymentMethod?: string;
 }
 
 export interface PayrollPayment {

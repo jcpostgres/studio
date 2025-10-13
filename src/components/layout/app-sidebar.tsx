@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
-import { assertAuth } from "@/lib/firebase";
 import {
   LayoutDashboard,
   Wallet,
@@ -44,7 +43,6 @@ const reportsNav = [
 
 const settingsNav = [
   { href: "/dashboard/accounts", icon: Landmark, label: "Cuentas" },
-  { href: "/dashboard/admin-payments", icon: FileCog, label: "Pagos Administrativos" },
   { href: "/dashboard/payroll", icon: Users, label: "Nómina" },
   { href: "/dashboard/clients-debts", icon: FolderKanban, label: "Clientes y Deudas" },
   { href: "/dashboard/reminders", icon: Bell, label: "Recordatorios" },
@@ -57,8 +55,8 @@ export function AppSidebar() {
   const { userProfile } = useAuth();
 
   const handleLogout = async () => {
-    await assertAuth().signOut();
-    router.push("/login");
+    // En modo local, simplemente redirigimos a la página de inicio/login
+    router.push("/");
   };
 
   const getInitials = (name: string) => {

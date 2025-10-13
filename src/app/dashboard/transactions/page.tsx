@@ -1,14 +1,13 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { Transaction } from "@/lib/types";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, doc, getDoc, writeBatch } from "firebase/firestore";
+import type { Transaction, Account } from "@/lib/types";
+import { getTransactions, deleteTransaction, getAccounts } from "@/lib/actions/db.actions";
 import { useToast } from "@/hooks/use-toast";
 import { TransactionForm } from "@/components/transactions/transaction-form";
 import { TransactionsTable } from "@/components/transactions/transactions-table";
@@ -36,6 +35,7 @@ export default function TransactionsPage() {
   const { toast } = useToast();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -46,30 +46,32 @@ export default function TransactionsPage() {
   useEffect(() => {
     if (!userId) return;
 
-  const transactionsColRef = collection(assertDb(), `users/${userId}/transactions`);
-    const unsubscribe = onSnapshot(
-      transactionsColRef,
-      (snapshot) => {
-        const fetchedTransactions = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Transaction[];
-        setTransactions(fetchedTransactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-        setLoading(false);
-      },
-      (error) => {
+    async function fetchTransactions() {
+      setLoading(true);
+      try {
+        const [fetchedTransactions, fetchedAccounts] = await Promise.all([getTransactions(userId), getAccounts(userId)]);
+        setTransactions(fetchedTransactions);
+        setAccounts(fetchedAccounts);
+      } catch (error) {
         console.error("Error fetching transactions:", error);
         toast({
           variant: "destructive",
           title: "Error",
           description: "No se pudieron cargar las transacciones.",
         });
+      } finally {
         setLoading(false);
       }
-    );
+    }
 
-    return () => unsubscribe();
+    fetchTransactions();
   }, [userId, toast]);
+
+  const accountsMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach(account => map.set(account.id, account.name));
+    return map;
+  }, [accounts]);
 
   const handleEdit = (transaction: Transaction) => {
     setEditingTransaction(transaction);
@@ -84,29 +86,17 @@ export default function TransactionsPage() {
   const confirmDelete = async () => {
     if (!userId || !transactionToDelete) return;
     try {
-  const batch = writeBatch(assertDb());
-        
-        if (transactionToDelete.type === 'withdrawal' && transactionToDelete.account) {
-            const accountRef = doc(assertDb(), `users/${userId}/accounts`, transactionToDelete.account);
-            const accountSnap = await getDoc(accountRef);
-            if (accountSnap.exists()) batch.update(accountRef, { balance: accountSnap.data().balance + transactionToDelete.amount });
-        } else if (transactionToDelete.type === 'accountTransfer' && transactionToDelete.sourceAccount && transactionToDelete.destinationAccount) {
-            const sourceAccRef = doc(assertDb(), `users/${userId}/accounts`, transactionToDelete.sourceAccount);
-            const destAccRef = doc(assertDb(), `users/${userId}/accounts`, transactionToDelete.destinationAccount);
-            const [sourceSnap, destSnap] = await Promise.all([getDoc(sourceAccRef), getDoc(destAccRef)]);
-            if(sourceSnap.exists()) batch.update(sourceAccRef, { balance: sourceSnap.data().balance + transactionToDelete.amount });
-            if(destSnap.exists()) batch.update(destAccRef, { balance: destSnap.data().balance - transactionToDelete.amount });
+        const result = await deleteTransaction(userId, transactionToDelete);
+        if (result.success) {
+            // Actualizar el estado local
+            setTransactions(transactions.filter(t => t.id !== transactionToDelete.id));
+            toast({ title: "Éxito", description: "Transacción eliminada y saldos revertidos." });
+        } else {
+            throw new Error(result.message);
         }
-        
-  const transactionRef = doc(assertDb(), `users/${userId}/transactions`, transactionToDelete.id);
-        batch.delete(transactionRef);
-
-        await batch.commit();
-
-        toast({ title: "Éxito", description: "Transacción eliminada y saldos revertidos." });
-    } catch (error) {
-        console.error("Error deleting transaction: ", error);
-        toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar la transacción." });
+    } catch (error: any) {
+        console.error("Error deleting transaction: ", error.message);
+        toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo eliminar la transacción." });
     }
     
     setIsAlertOpen(false);
@@ -140,6 +130,7 @@ export default function TransactionsPage() {
             <CardContent className="p-6">
                  <TransactionsTable
                     transactions={transactions}
+                    accountsMap={accountsMap}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     loading={loading}

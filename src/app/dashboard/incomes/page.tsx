@@ -9,9 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
-import { Income } from "@/lib/types";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, doc, deleteDoc, writeBatch, getDoc } from "firebase/firestore";
+import type { Income } from "@/lib/types";
+import { getIncomes, deleteIncome } from "@/lib/actions/db.actions";
 import { IncomesTable } from "@/components/incomes/incomes-table";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -33,18 +32,20 @@ export default function IncomesPage() {
 
   useEffect(() => {
     if (!userId) return;
-  const incomesRef = collection(assertDb(), `users/${userId}/incomes`);
-  const unsubscribe = onSnapshot(incomesRef, (snapshot) => {
-      const fetchedIncomes = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Income));
-      setIncomes(fetchedIncomes);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching incomes:", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los ingresos." });
-      setLoading(false);
-    });
 
-    return () => unsubscribe();
+    async function fetchIncomes() {
+      setLoading(true);
+      try {
+        const fetchedIncomes = await getIncomes(userId);
+        setIncomes(fetchedIncomes);
+      } catch (error) {
+        console.error("Error fetching incomes:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los ingresos." });
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchIncomes();
   }, [userId, toast]);
   
   const filteredIncomes = useMemo(() => {
@@ -90,32 +91,16 @@ export default function IncomesPage() {
     if (!userId || !incomeToDelete) return;
 
     try {
-      const batch = writeBatch(assertDb());
-
-    // Revert account balance
-  const accountRef = doc(assertDb(), `users/${userId}/accounts`, incomeToDelete.paymentAccount);
-  const accountSnap = await getDoc(accountRef);
-    const prevBalance = accountSnap.exists() ? (accountSnap.data()?.balance ?? 0) : 0;
-    batch.update(accountRef, { balance: prevBalance - incomeToDelete.amountWithCommission });
-
-    // Delete associated reminder if it exists
-  const reminderQuery = collection(assertDb(), `users/${userId}/reminders`);
-  const reminderSnapshot = await getDoc(doc(assertDb(), `users/${userId}/reminders`, incomeToDelete.id));
-    if (reminderSnapshot.exists()) {
-      batch.delete(doc(assertDb(), `users/${userId}/reminders`, incomeToDelete.id));
-    }
-        
-        // Delete income
-      const incomeDocRef = doc(assertDb(), `users/${userId}/incomes`, incomeToDelete.id);
-        batch.delete(incomeDocRef);
-
-        await batch.commit();
-
+      const result = await deleteIncome(userId, incomeToDelete);
+      if (result.success) {
+        setIncomes(incomes.filter(i => i.id !== incomeToDelete.id));
         toast({ title: "Éxito", description: "Ingreso eliminado correctamente." });
-
-    } catch (error) {
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
         console.error("Error deleting income:", error);
-        toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el ingreso." });
+        toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo eliminar el ingreso." });
     } finally {
         setIsAlertOpen(false);
         setIncomeToDelete(null);

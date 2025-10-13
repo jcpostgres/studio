@@ -9,9 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
-import { Expense } from "@/lib/types";
-import { assertDb } from "@/lib/firebase";
-import { collection, onSnapshot, doc, deleteDoc, getDoc, writeBatch } from "firebase/firestore";
+import type { Expense, Account } from "@/lib/types";
+import { getExpenses, deleteExpense, getAccounts } from "@/lib/actions/db.actions";
 import { ExpensesTable } from "@/components/expenses/expenses-table";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -23,6 +22,7 @@ export default function ExpensesPage() {
   const { toast } = useToast();
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
@@ -33,19 +33,28 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     if (!userId) return;
-  const expensesRef = collection(assertDb(), `users/${userId}/expenses`);
-  const unsubscribe = onSnapshot(expensesRef, (snapshot) => {
-      const fetchedExpenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Expense));
-      setExpenses(fetchedExpenses);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching expenses:", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los gastos." });
-      setLoading(false);
-    });
 
-    return () => unsubscribe();
+    async function fetchExpenses() {
+      setLoading(true);
+      try {
+        const [fetchedExpenses, fetchedAccounts] = await Promise.all([getExpenses(userId), getAccounts(userId)]);
+        setExpenses(fetchedExpenses);
+        setAccounts(fetchedAccounts);
+      } catch (error) {
+        console.error("Error fetching expenses:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los gastos." });
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchExpenses();
   }, [userId, toast]);
+
+  const accountsMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach(account => map.set(account.id, account.name));
+    return map;
+  }, [accounts]);
   
   const filteredExpenses = useMemo(() => {
     return expenses.filter(expense => {
@@ -96,29 +105,16 @@ export default function ExpensesPage() {
     if (!userId || !expenseToDelete) return;
 
     try {
-  const batch = writeBatch(assertDb());
-
-  // Revert account balance
-  const accountRef = doc(assertDb(), `users/${userId}/accounts`, expenseToDelete.paymentAccount);
-        const accountSnap = await getDoc(accountRef);
-        if (accountSnap.exists()){
-             const currentBalance = accountSnap.data()?.balance || 0;
-             batch.update(accountRef, {
-                balance: currentBalance + expenseToDelete.amount
-            });
-        }
-        
-        // Delete expense
-  const expenseDocRef = doc(assertDb(), `users/${userId}/expenses`, expenseToDelete.id);
-        batch.delete(expenseDocRef);
-
-        await batch.commit();
-
+      const result = await deleteExpense(userId, expenseToDelete);
+      if (result.success) {
+        setExpenses(expenses.filter(e => e.id !== expenseToDelete.id));
         toast({ title: "Éxito", description: "Gasto eliminado correctamente." });
-
-    } catch (error) {
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
         console.error("Error deleting expense:", error);
-        toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el gasto." });
+        toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo eliminar el gasto." });
     } finally {
         setIsAlertOpen(false);
         setExpenseToDelete(null);
@@ -172,6 +168,7 @@ export default function ExpensesPage() {
                 <CardContent className="p-6">
                     <ExpensesTable
                         expenses={filteredExpenses}
+                        accountsMap={accountsMap}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                         loading={loading}

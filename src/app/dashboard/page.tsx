@@ -5,9 +5,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Landmark, FileText, ArrowUp, ArrowDown, Wallet } from "lucide-react";
-import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { Landmark, FileText, ArrowUp, ArrowDown, Wallet } from "lucide-react"; 
+import { getDashboardData } from "@/lib/actions/db.actions";
 import type { Income, Expense, Account, Transaction as TransactionType, PayrollPayment } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
@@ -22,120 +21,87 @@ export default function DashboardPage() {
     const [todayTransactions, setTodayTransactions] = useState<any[]>([]);
     
     useEffect(() => {
-        if (!userId || !db) return;
+        if (!userId) return;
 
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
-        const today = now.toISOString().split('T')[0];
-        setMonthName(now.toLocaleString('es-ES', { month: 'long' }));
+        async function loadDashboardData() {
+            setLoading(true);
+            try {
+                const { allIncomes, allExpenses, allPayrollPayments, allTransactions, allAccounts } = await getDashboardData(userId);
+
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                const today = now.toISOString().split('T')[0];
+                setMonthName(now.toLocaleString('es-ES', { month: 'long' }));
+
+                const parseDate = (dateString: string) => new Date(`${dateString}T00:00:00`);
+
+                // Calcular datos del mes
+                const filteredIncomes = allIncomes.filter((inc) => {
+                    const date = parseDate(inc.date);
+                    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+                });
+                const totalIncome = filteredIncomes.reduce((sum, inc) => sum + (inc.amountWithCommission || 0), 0);
+                
+                const filteredExpenses = allExpenses.filter((exp) => {
+                    const date = parseDate(exp.date);
+                    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+                });
+                const totalExpense = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+
+                setMonthlyData({ income: totalIncome, expense: totalExpense, utility: totalIncome - totalExpense });
+                
+                // Encontrar efectivo en caja
+                const cashAccount = allAccounts.find(acc => acc.name.toLowerCase().includes("efectivo"));
+                setCurrentCash(cashAccount?.balance || 0);
+
+                // Transacciones de hoy
+                const todayTxns = [
+                    ...allIncomes.filter(inc => inc.date === today).map(inc => ({
+                        id: inc.id,
+                        type: 'Ingreso',
+                        description: `${inc.client} - ${JSON.parse(inc.servicesDetails as unknown as string).map((s: any) => s.name).join(', ')}`,
+                        amount: inc.amountWithCommission,
+                        isPositive: true,
+                        timestamp: inc.timestamp
+                    })),
+                    ...allExpenses.filter(exp => exp.date === today).map(exp => ({
+                        id: exp.id,
+                        type: 'Gasto',
+                        description: exp.category,
+                        amount: exp.amount,
+                        isPositive: false,
+                        timestamp: exp.timestamp
+                    })),
+                    ...allPayrollPayments.filter(pay => pay.date === today).map(pay => ({
+                        id: pay.id,
+                        type: 'Nómina',
+                        description: `Pago a ${pay.employeeName}`,
+                        amount: pay.totalAmount,
+                        isPositive: false,
+                        timestamp: pay.timestamp
+                    })),
+                    ...allTransactions.filter(trans => trans.date === today).map(trans => ({
+                        id: trans.id,
+                        type: trans.type === 'withdrawal' ? 'Alivio/Retiro' : 'Transferencia',
+                        description: trans.observations || (trans.type === 'accountTransfer' ? `De ${trans.sourceAccount} a ${trans.destinationAccount}` : trans.account),
+                        amount: trans.amount,
+                        isPositive: trans.type === 'accountTransfer', // This might need refinement
+                        timestamp: trans.timestamp
+                    }))
+                ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+                setTodayTransactions(todayTxns);
+            } catch (error) {
+                console.error("Error loading dashboard data:", error);
+            } finally {
+                setLoading(false);
+            }
+        }
         
-        let allIncomes: Income[] = [];
-        let allExpenses: Expense[] = [];
-        let allPayrollPayments: PayrollPayment[] = [];
-        let allTransactions: TransactionType[] = [];
-
-        const parseDate = (dateString: string) => {
-             // Handles 'YYYY-MM-DD' format by ensuring it's parsed in UTC to avoid timezone issues.
-            return new Date(`${dateString}T00:00:00`);
-        };
-
-        const updateAllData = () => {
-            const filteredIncomes = allIncomes.filter(inc => {
-                const date = parseDate(inc.date);
-                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-            });
-            const totalIncome = filteredIncomes.reduce((sum, inc) => sum + (inc.amountWithCommission || 0), 0);
-            
-            const filteredExpenses = allExpenses.filter(exp => {
-                const date = parseDate(exp.date);
-                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-            });
-            const totalExpense = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-
-            setMonthlyData({ income: totalIncome, expense: totalExpense, utility: totalIncome - totalExpense });
-
-            const todayTxns = [
-                ...allIncomes.filter(inc => inc.date === today).map(inc => ({
-                    id: inc.id,
-                    type: 'Ingreso',
-                    description: `${inc.client} - ${inc.servicesDetails.map(s => s.name).join(', ')}`,
-                    amount: inc.amountWithCommission,
-                    isPositive: true,
-                    timestamp: inc.timestamp
-                })),
-                ...allExpenses.filter(exp => exp.date === today).map(exp => ({
-                    id: exp.id,
-                    type: 'Gasto',
-                    description: exp.category,
-                    amount: exp.amount,
-                    isPositive: false,
-                    timestamp: exp.timestamp
-                })),
-                ...allPayrollPayments.filter(pay => pay.date === today).map(pay => ({
-                    id: pay.id,
-                    type: 'Nómina',
-                    description: `Pago a ${pay.employeeName}`,
-                    amount: pay.totalAmount,
-                    isPositive: false,
-                    timestamp: pay.timestamp
-                })),
-                ...allTransactions.filter(trans => trans.date === today).map(trans => ({
-                    id: trans.id,
-                    type: trans.type === 'withdrawal' ? 'Alivio/Retiro' : 'Transferencia',
-                    description: trans.observations || (trans.type === 'accountTransfer' ? `De ${trans.sourceAccount} a ${trans.destinationAccount}` : trans.account),
-                    amount: trans.amount,
-                    isPositive: trans.type === 'accountTransfer', // This might need refinement
-                    timestamp: trans.timestamp
-                }))
-            ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-            setTodayTransactions(todayTxns);
-        };
-
-        const incomesRef = collection(db, `users/${userId}/incomes`);
-        const unsubscribeIncomes = onSnapshot(incomesRef, (snapshot) => {
-            allIncomes = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Income);
-            updateAllData();
-        });
-
-        const expensesRef = collection(db, `users/${userId}/expenses`);
-        const unsubscribeExpenses = onSnapshot(expensesRef, (snapshot) => {
-            allExpenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Expense);
-            updateAllData();
-        });
-
-        const payrollRef = collection(db, `users/${userId}/payrollPayments`);
-        const unsubscribePayroll = onSnapshot(payrollRef, (snapshot) => {
-            allPayrollPayments = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as PayrollPayment);
-            updateAllData();
-        });
-
-        const transactionsRef = collection(db, `users/${userId}/transactions`);
-        const unsubscribeTransactions = onSnapshot(transactionsRef, (snapshot) => {
-            allTransactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as TransactionType);
-            updateAllData();
-        });
-        
-        const accountsRef = collection(db, `users/${userId}/accounts`);
-        const unsubscribeAccounts = onSnapshot(accountsRef, (snapshot) => {
-            const cashAccount = snapshot.docs
-              .map(doc => doc.data() as Account)
-              .find(acc => acc.name.toLowerCase().includes("efectivo"));
-            setCurrentCash(cashAccount?.balance || 0);
-            setLoading(false);
-        });
-
-        return () => {
-            unsubscribeIncomes();
-            unsubscribeExpenses();
-            unsubscribePayroll();
-            unsubscribeTransactions();
-            unsubscribeAccounts();
-        };
-
+        loadDashboardData();
     }, [userId]);
-    
+
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat("en-US", {
         style: "currency",
