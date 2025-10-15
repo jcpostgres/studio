@@ -27,7 +27,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Mocked user data for development without login
   const [userId] = useState<string | null>("dev_user_id");
-  const [userProfile] = useState<UserProfile | null>({ name: "Desarrollador", email: "dev@example.com" });
+  const [userProfile] = useState<UserProfile | null>({ name: "Enfoca2's", email: "Studios" });
   const [loading] = useState(false);
   const [configError] = useState(false);
   const [isAuthReady] = useState(true);
