@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, DollarSign, Minus, Calendar, Users, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 
 export default function TotalGeneralPage() {
@@ -140,7 +141,7 @@ export default function TotalGeneralPage() {
 
         filteredData.incomes.forEach(income => {
             const incomeData = [
-                new Date(income.date).toLocaleDateString('es-ES'),
+                new Date(`${income.date}T00:00:00`).toLocaleDateString('es-ES'),
                 income.client,
                 income.servicesDetails.map(s => s.name).join(', '),
                 formatCurrency(income.amountPaid)
@@ -176,7 +177,7 @@ export default function TotalGeneralPage() {
 
         allExpensesData.forEach(expense => {
             const expenseData = [
-                new Date(expense.date).toLocaleDateString('es-ES'),
+                new Date(`${expense.date}T00:00:00`).toLocaleDateString('es-ES'),
                 expense.concept,
                 formatCurrency(expense.amount)
             ];
@@ -206,7 +207,7 @@ export default function TotalGeneralPage() {
 
         filteredData.payrollPayments.forEach(payment => {
             const paymentData = [
-                new Date(payment.date).toLocaleDateString('es-ES'),
+                new Date(`${payment.date}T00:00:00`).toLocaleDateString('es-ES'),
                 payment.employeeName,
                 payment.paymentType === '4th' ? '1ra Quincena' : payment.paymentType === '20th' ? '2da Quincena' : 'Bono',
                 formatCurrency(payment.totalAmount)
@@ -225,6 +226,70 @@ export default function TotalGeneralPage() {
 
         toast({ title: "Éxito", description: "La descarga de tu reporte PDF ha comenzado."});
     };
+
+        const handleExportIncomesXlsx = () => {
+            if (filteredData.incomes.length === 0) {
+                toast({ variant: "destructive", title: "Sin Datos", description: `No hay ingresos para exportar en el año ${filterYear}.`});
+                return;
+            }
+
+            const headers = ["Fecha", "Cliente", "Servicios", "Monto Pagado", "Monto Neto Recibido"];
+            const data = filteredData.incomes.map(inc => [
+                new Date(inc.date).toLocaleDateString('es-ES'),
+                inc.client,
+                inc.servicesDetails.map((s:any) => s.name).join(', '),
+                inc.amountPaid,
+                inc.amountWithCommission || 0,
+            ]);
+
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Ingresos');
+            XLSX.writeFile(wb, `ingresos_${filterYear}.xlsx`);
+            toast({ title: "Éxito", description: "La descarga de tu reporte XLSX ha comenzado."});
+        };
+
+        const handleExportExpensesXlsx = () => {
+            const allExpensesData = [
+                ...filteredData.expenses.map(e => ({ date: e.date, concept: e.category, amount: e.amount })),
+                ...filteredData.payrollPayments.map(p => ({ date: p.date, concept: `Nómina - ${p.employeeName}`, amount: p.totalAmount }))
+            ];
+
+            if (allExpensesData.length === 0) {
+                toast({ variant: "destructive", title: "Sin Datos", description: `No hay gastos para exportar en el año ${filterYear}.`});
+                return;
+            }
+
+            const headers = ["Fecha", "Concepto", "Monto"];
+            const data = allExpensesData.map(e => [new Date(e.date).toLocaleDateString('es-ES'), e.concept, e.amount]);
+
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Gastos');
+            XLSX.writeFile(wb, `gastos_${filterYear}.xlsx`);
+            toast({ title: "Éxito", description: "La descarga de tu reporte XLSX ha comenzado."});
+        };
+
+        const handleExportPayrollXlsx = () => {
+            if (filteredData.payrollPayments.length === 0) {
+                toast({ variant: "destructive", title: "Sin Datos", description: `No hay datos de nómina para exportar en el año ${filterYear}.`});
+                return;
+            }
+
+            const headers = ["Fecha", "Nombre Empleado", "Tipo de Pago", "Monto Total"];
+            const data = filteredData.payrollPayments.map(payment => [
+                new Date(payment.date).toLocaleDateString('es-ES'),
+                payment.employeeName,
+                payment.paymentType === '4th' ? '1ra Quincena' : payment.paymentType === '20th' ? '2da Quincena' : 'Bono',
+                payment.totalAmount
+            ]);
+
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Nomina');
+            XLSX.writeFile(wb, `nomina_${filterYear}.xlsx`);
+            toast({ title: "Éxito", description: "La descarga de tu reporte XLSX ha comenzado."});
+        };
 
 
     const MetricCard = ({ title, value, colorClass, loading }: { title: string, value: number, colorClass: string, loading: boolean }) => (
@@ -299,18 +364,62 @@ export default function TotalGeneralPage() {
              <Card>
                 <CardHeader>
                     <CardTitle>Exportar Datos</CardTitle>
-                    <CardDescription>Descarga los datos del año seleccionado en formato CSV.</CardDescription>
+                    <CardDescription>Descarga los datos del año seleccionado.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Button onClick={handleExportIncomesPdf} disabled={loading}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar Ingresos (PDF)
-                    </Button>
-                    <Button onClick={handleExportExpensesPdf} disabled={loading}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar Gastos (PDF)
-                    </Button>
-                    <Button onClick={handleExportPayrollPdf} disabled={loading}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar Nómina (PDF)
-                    </Button>
+                    <div className="p-3 border rounded-lg">
+                        <div className="flex items-center mb-3">
+                            <DollarSign className="mr-2 h-5 w-5 text-green-400" />
+                            <div>
+                                <p className="font-semibold">Ingresos</p>
+                                <p className="text-xs text-muted-foreground">Exporta registros de ingresos</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Button className="w-full" onClick={handleExportIncomesPdf} disabled={loading}>
+                                <Download className="mr-2 h-4 w-4" /> Exportar Ingresos (PDF)
+                            </Button>
+                            <Button className="w-full" onClick={handleExportIncomesXlsx} disabled={loading}>
+                                <Download className="mr-2 h-4 w-4" /> Exportar Ingresos (XLSX)
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="p-3 border rounded-lg">
+                        <div className="flex items-center mb-3">
+                            <TrendingDown className="mr-2 h-5 w-5 text-red-400" />
+                            <div>
+                                <p className="font-semibold">Gastos</p>
+                                <p className="text-xs text-muted-foreground">Exporta gastos y nómina asociada</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Button className="w-full" onClick={handleExportExpensesPdf} disabled={loading}>
+                                <Download className="mr-2 h-4 w-4" /> Exportar Gastos (PDF)
+                            </Button>
+                            <Button className="w-full" onClick={handleExportExpensesXlsx} disabled={loading}>
+                                <Download className="mr-2 h-4 w-4" /> Exportar Gastos (XLSX)
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="p-3 border rounded-lg">
+                        <div className="flex items-center mb-3">
+                            <Users className="mr-2 h-5 w-5 text-purple-400" />
+                            <div>
+                                <p className="font-semibold">Nómina</p>
+                                <p className="text-xs text-muted-foreground">Exporta registros de nómina</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Button className="w-full" onClick={handleExportPayrollPdf} disabled={loading}>
+                                <Download className="mr-2 h-4 w-4" /> Exportar Nómina (PDF)
+                            </Button>
+                            <Button className="w-full" onClick={handleExportPayrollXlsx} disabled={loading}>
+                                <Download className="mr-2 h-4 w-4" /> Exportar Nómina (XLSX)
+                            </Button>
+                        </div>
+                    </div>
                 </CardContent>
              </Card>
 

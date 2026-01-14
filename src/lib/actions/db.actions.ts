@@ -2,6 +2,7 @@
 
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
+import { schema } from '@/lib/schema.js';
 
 let db: Awaited<ReturnType<typeof open>> | null = null;
 
@@ -11,6 +12,12 @@ async function assertDb() {
       filename: './database.db',
       driver: sqlite3.Database,
     });
+        // Ensure schema exists (create missing tables when DB was created before schema changes)
+        try {
+            await db.exec(schema as unknown as string);
+        } catch (e) {
+            console.error('Error ensuring DB schema:', e);
+        }
   }
   return db;
 }
@@ -661,5 +668,42 @@ export async function savePayrollPayment(
         }
         console.error("Error saving payroll payment:", error);
         return { success: false, message: error.message };
+    }
+}
+
+export async function saveClientPayment(
+    userId: string,
+    clientName: string,
+    date: string,
+    amount: number,
+    account?: string,
+    incomeIds?: string[]
+) {
+    const db = await assertDb();
+    try {
+        const id = randomUUID();
+        await db.run(
+            `INSERT INTO clientPayments (id, userId, clientName, date, amount, account, incomeIds, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, userId, clientName, date, amount, account || null, incomeIds ? JSON.stringify(incomeIds) : null, new Date().toISOString()
+        );
+        console.log(`Saved clientPayment ${id} for client=${clientName} amount=${amount}`);
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error saving client payment:', error);
+        return { success: false, message: error.message };
+    }
+}
+
+export async function getClientPayments(userId: string): Promise<any[]> {
+    const db = await assertDb();
+    try {
+        const rows = await db.all<any[]>("SELECT * FROM clientPayments WHERE userId = ? ORDER BY timestamp DESC", userId);
+        const mapped = rows.map(r => ({ ...r, incomeIds: r.incomeIds ? JSON.parse(r.incomeIds) : [] }));
+        console.log(`Fetched ${mapped.length} clientPayments for user ${userId}`);
+        return mapped;
+    } catch (error: any) {
+        console.error('Error fetching client payments:', error);
+        return [];
     }
 }

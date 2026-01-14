@@ -93,6 +93,19 @@ export const schema = `
         FOREIGN KEY (userId) REFERENCES users(id)
     );
 
+    -- Tabla de Pagos de Clientes (registro histórico de pagos aplicados a deudas)
+    CREATE TABLE IF NOT EXISTS clientPayments (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        clientName TEXT NOT NULL,
+        date TEXT NOT NULL,
+        amount REAL NOT NULL,
+        account TEXT,
+        incomeIds TEXT, -- JSON array of income ids this payment applied to
+        timestamp TEXT NOT NULL,
+        FOREIGN KEY (userId) REFERENCES users(id)
+    );
+
     -- Tabla de Pagos Administrativos
     CREATE TABLE IF NOT EXISTS adminPayments (
         id TEXT PRIMARY KEY,

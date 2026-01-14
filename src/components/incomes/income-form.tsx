@@ -106,6 +106,24 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
   const amountWithCommission = useMemo(() => watchedAmountPaid - commissionAmount, [watchedAmountPaid, commissionAmount]);
   const remainingBalance = useMemo(() => totalContractedAmount - watchedAmountPaid, [totalContractedAmount, watchedAmountPaid]);
 
+    // Live totals subscription: ensures totals update immediately on each keystroke
+    const [liveTotal, setLiveTotal] = useState<number>(totalContractedAmount);
+    const [liveRemaining, setLiveRemaining] = useState<number>(remainingBalance);
+
+    useEffect(() => {
+        const subscription = form.watch((value) => {
+            const services = value?.servicesDetails || [];
+            const total = services.reduce((sum: number, s: any) => {
+                const amt = parseFloat(String(s?.amount ?? 0));
+                return sum + (isNaN(amt) ? 0 : amt);
+            }, 0);
+            const paid = Number(value?.amountPaid ?? 0) || 0;
+            setLiveTotal(total);
+            setLiveRemaining(total - paid);
+        });
+        return () => subscription.unsubscribe();
+    }, [form]);
+
 
   useEffect(() => {
       if (!userId) return;
@@ -255,7 +273,20 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
                 <FormItem>
                     <FormLabel>Costo {field.name}</FormLabel>
                     <FormControl>
-                    <Input type="number" step="0.01" placeholder="0.00" {...formField} />
+                    <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formField.value ?? ''}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            formField.onChange(val === '' ? '' : Number(val));
+                        }}
+                        onInput={(e: any) => {
+                            const val = e.currentTarget.value;
+                            form.setValue(`servicesDetails.${index}.amount`, val === '' ? '' : Number(val), { shouldValidate: false, shouldDirty: true });
+                        }}
+                    />
                     </FormControl>
                     <FormMessage />
                 </FormItem>
@@ -266,22 +297,34 @@ export function IncomeForm({ incomeToEdit }: IncomeFormProps) {
         <div className="bg-card-foreground/5 p-4 rounded-lg space-y-2">
             <div className="flex justify-between items-center">
                 <span className="font-medium">Monto Total Contratado:</span>
-                <span className="font-bold text-cyan-400">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(totalContractedAmount)}</span>
+                <span className="font-bold text-cyan-400">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(liveTotal)}</span>
             </div>
              <div className="flex justify-between items-center">
                 <span className="font-medium">Saldo Pendiente:</span>
-                <span className="font-bold text-red-400">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(remainingBalance)}</span>
+                <span className="font-bold text-red-400">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(liveRemaining)}</span>
             </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField control={form.control} name="amountPaid" render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Monto Pagado</FormLabel>
-                    <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
-                    <FormMessage />
-                </FormItem>
-            )}/>
+                    <FormItem>
+                        <FormLabel>Monto Pagado</FormLabel>
+                        <FormControl>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+                                onInput={(e: any) => {
+                                    const val = e.currentTarget.value;
+                                    form.setValue('amountPaid', val === '' ? '' : Number(val), { shouldValidate: false, shouldDirty: true });
+                                }}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}/>
             <FormField control={form.control} name="paymentAccount" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Cuenta de Pago</FormLabel>

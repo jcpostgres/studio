@@ -38,10 +38,21 @@ export function PayrollPaymentForm({ employee, paymentType, selectedDate, accoun
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Compute sensible default date: for bonuses, default to last day of selected month
+    const computeDefaultDate = () => {
+        if (paymentType === 'bonus') {
+            const year = selectedDate.year;
+            const month = selectedDate.month; // 0-based
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            return new Date(year, month, lastDay).toISOString().split('T')[0];
+        }
+        return new Date().toISOString().split('T')[0];
+    };
+
     const form = useForm<PayrollPaymentFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            date: new Date().toISOString().split('T')[0],
+            date: computeDefaultDate(),
             totalAmount: paymentType === 'bonus' ? 0 : employee.biWeeklySalary,
             paymentAccount: "",
             observations: paymentType === 'bonus' 
