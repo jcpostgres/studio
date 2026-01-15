@@ -50,50 +50,84 @@ export async function getExistingExpenseCategories(
 }
 
 export async function saveExpense(
-  userId: string,
-  values: Omit<Expense, "id" | "timestamp" | "userId">
+    userId: string,
+    values: Omit<Expense, "timestamp" | "userId"> & { id?: string }
 ) {
-  const db = await assertDb();
-  await db.exec("BEGIN TRANSACTION");
-  try {
-    const expenseId = randomUUID();
-    await db.run(
-      `INSERT INTO expenses (id, userId, date, type, category, amount, paymentAccount, responsible, observations, timestamp)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      expenseId,
-      userId,
-      values.date,
-      values.type,
-      values.category,
-      values.amount,
-      values.paymentAccount,
-      values.responsible || "",
-      values.observations || "",
-      new Date().toISOString()
-    );
+    const db = await assertDb();
+    await db.exec("BEGIN TRANSACTION");
+    try {
+        const expenseId = values.id || randomUUID();
 
-    const account = await db.get<Account>(
-      "SELECT balance FROM accounts WHERE id = ? AND userId = ?",
-      values.paymentAccount,
-      userId
-    );
-    if (!account) {
-      throw new Error("La cuenta de pago no existe.");
+        // If editing, load existing expense to revert balances if necessary
+        const existing: Expense | undefined = values.id
+            ? await db.get<Expense>("SELECT * FROM expenses WHERE id = ? AND userId = ?", values.id, userId).catch(() => undefined)
+            : undefined;
+
+        // If editing and existing found, revert previous account balance adjustments
+        if (existing) {
+            // If payment account changed, revert old account and apply to new
+            if (existing.paymentAccount !== values.paymentAccount) {
+                // Revert old account
+                await db.run(
+                    "UPDATE accounts SET balance = balance + ? WHERE id = ? AND userId = ?",
+                    existing.amount,
+                    existing.paymentAccount,
+                    userId
+                );
+                // Subtract from new account below
+            } else {
+                // Same account: adjust by difference
+                const diff = values.amount - existing.amount;
+                if (diff !== 0) {
+                    await db.run(
+                        "UPDATE accounts SET balance = balance - ? WHERE id = ? AND userId = ?",
+                        diff,
+                        values.paymentAccount,
+                        userId
+                    );
+                }
+            }
+        }
+
+        // If not editing (new) or paymentAccount changed, apply subtraction to target account
+        if (!existing || existing.paymentAccount !== values.paymentAccount) {
+            const account = await db.get<Account>(
+                "SELECT balance FROM accounts WHERE id = ? AND userId = ?",
+                values.paymentAccount,
+                userId
+            );
+            if (!account) {
+                throw new Error("La cuenta de pago no existe.");
+            }
+            const newBalance = account.balance - values.amount;
+            await db.run("UPDATE accounts SET balance = ? WHERE id = ?", newBalance, values.paymentAccount);
+        }
+
+        // Upsert the expense record
+        await db.run(
+            `INSERT INTO expenses (id, userId, date, type, category, amount, paymentAccount, responsible, observations, timestamp)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                     date=excluded.date, type=excluded.type, category=excluded.category, amount=excluded.amount, paymentAccount=excluded.paymentAccount, responsible=excluded.responsible, observations=excluded.observations, timestamp=excluded.timestamp`,
+            expenseId,
+            userId,
+            values.date,
+            values.type,
+            values.category,
+            values.amount,
+            values.paymentAccount,
+            values.responsible || "",
+            values.observations || "",
+            new Date().toISOString()
+        );
+
+        await db.exec("COMMIT");
+        return { success: true };
+    } catch (error: any) {
+        await db.exec("ROLLBACK");
+        console.error("Error saving expense:", error);
+        return { success: false, message: error.message };
     }
-    const newBalance = account.balance - values.amount;
-    await db.run(
-      "UPDATE accounts SET balance = ? WHERE id = ?",
-      newBalance,
-      values.paymentAccount
-    );
-
-    await db.exec("COMMIT");
-    return { success: true };
-  } catch (error: any) {
-    await db.exec("ROLLBACK");
-    console.error("Error saving expense:", error);
-    return { success: false, message: error.message };
-  }
 }
 
 export async function getDashboardData(userId: string) {

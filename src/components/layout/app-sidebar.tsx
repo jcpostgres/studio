@@ -2,6 +2,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   SidebarHeader,
   SidebarContent,
@@ -86,18 +87,34 @@ export function AppSidebar() {
     ))
   );
 
+  function Logo() {
+    const [showImg, setShowImg] = useState(true);
+    return showImg ? (
+      // PNG expected at /logo.png
+      // If it fails to load, onError will hide the img and SVG fallback will be rendered
+      <img src="/logo.png" alt="MonsterFinance" className="h-8 w-8 object-contain" onError={() => setShowImg(false)} />
+    ) : (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-primary">
+        <path d="M12 12c-2 0-2-2-2-2s0-2 2-2 2 2 2 2-2 2-2 2z"/>
+        <path d="M12 12c2 0 2-2 2-2s0-2-2-2-2 2-2 2 2 2 2 2z"/>
+        <path d="M12 12v4c0 2-2 2-2 2s-2-2-2-2v-4"/>
+        <path d="M12 12v4c0 2 2 2 2 2s2-2 2-2v-4"/>
+        <path d="M6 12H4c-1 0-2 1-2 2v2c0 1 1 2 2 2h2"/>
+        <path d="M18 12h2c1 0 2 1 2 2v2c0 1-1 2-2 2h-2"/>
+      </svg>
+    );
+  }
+
   return (
     <>
       <SidebarHeader>
         <div className="flex items-center gap-3 p-2">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-primary">
-              <path d="M12 12c-2 0-2-2-2-2s0-2 2-2 2 2 2 2-2 2-2 2z"/>
-              <path d="M12 12c2 0 2-2 2-2s0-2-2-2-2 2-2 2 2 2 2 2z"/>
-              <path d="M12 12v4c0 2-2 2-2 2s-2-2-2-2v-4"/>
-              <path d="M12 12v4c0 2 2 2 2 2s2-2 2-2v-4"/>
-              <path d="M6 12H4c-1 0-2 1-2 2v2c0 1 1 2 2 2h2"/>
-              <path d="M18 12h2c1 0 2 1 2 2v2c0 1-1 2-2 2h-2"/>
-            </svg>
+            {/* Intentamos cargar un PNG en /public/logo.png; si falla, mostramos el SVG de reserva */}
+            {/**
+             * Coloca tu archivo PNG en: public/logo.png
+             * Si lo nombras distinto, actualiza la ruta `src` abajo.
+             */}
+            <Logo />
             <span className="text-xl font-semibold text-primary">MonsterFinance</span>
         </div>
       </SidebarHeader>

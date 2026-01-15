@@ -37,7 +37,12 @@ const formSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof formSchema>;
 
-export function ExpenseForm() {
+interface ExpenseFormProps {
+  expenseToEdit?: Partial<Expense> | null;
+  onSuccess?: () => void;
+}
+
+export function ExpenseForm({ expenseToEdit, onSuccess }: ExpenseFormProps) {
   const router = useRouter();
   const { userId } = useAuth();
   const { toast } = useToast();
@@ -52,13 +57,13 @@ export function ExpenseForm() {
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      date: new Date().toISOString().split('T')[0],
-      type: "variable",
-      category: "",
-      amount: 0,
-      paymentAccount: "",
-      responsible: "",
-      observations: "",
+      date: expenseToEdit?.date || new Date().toISOString().split('T')[0],
+      type: (expenseToEdit?.type as any) || "variable",
+      category: expenseToEdit?.category || "",
+      amount: expenseToEdit?.amount || 0,
+      paymentAccount: expenseToEdit?.paymentAccount || "",
+      responsible: expenseToEdit?.responsible || "",
+      observations: expenseToEdit?.observations || "",
     },
   });
 
@@ -112,10 +117,16 @@ export function ExpenseForm() {
     setIsSubmitting(true);
     
     try {
-      const result = await saveExpense(userId, values);
+      const payload: any = { ...values };
+      if (expenseToEdit?.id) payload.id = expenseToEdit.id;
+      const result = await saveExpense(userId, payload);
       if (result.success) {
         toast({ title: "Éxito", description: "Gasto registrado correctamente." });
-        router.push("/dashboard/expenses");
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push("/dashboard/expenses");
+        }
       } else {
         throw new Error(result.message || "No se pudo guardar el gasto.");
       }

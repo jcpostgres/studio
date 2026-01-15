@@ -12,8 +12,10 @@ import { useAuth } from "@/context/auth-context";
 import type { Expense, Account } from "@/lib/types";
 import { getExpenses, deleteExpense, getAccounts } from "@/lib/actions/db.actions";
 import { ExpensesTable } from "@/components/expenses/expenses-table";
+import { ExpenseForm } from "@/components/expenses/expense-form";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PlusCircle } from "lucide-react";
 
 export default function ExpensesPage() {
@@ -30,25 +32,27 @@ export default function ExpensesPage() {
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+
+  const fetchExpenses = async () => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const [fetchedExpenses, fetchedAccounts] = await Promise.all([getExpenses(userId), getAccounts(userId)]);
+      setExpenses(fetchedExpenses);
+      setAccounts(fetchedAccounts);
+    } catch (error) {
+      console.error("Error fetching expenses:", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los gastos." });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!userId) return;
-
-    async function fetchExpenses() {
-      setLoading(true);
-      try {
-        const [fetchedExpenses, fetchedAccounts] = await Promise.all([getExpenses(userId), getAccounts(userId)]);
-        setExpenses(fetchedExpenses);
-        setAccounts(fetchedAccounts);
-      } catch (error) {
-        console.error("Error fetching expenses:", error);
-        toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los gastos." });
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchExpenses();
-  }, [userId, toast]);
+  }, [userId]);
 
   const accountsMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -91,9 +95,9 @@ export default function ExpensesPage() {
 
 
   const handleEdit = (expenseId: string) => {
-    // Implement edit navigation if an edit page is created
-    // router.push(`/dashboard/expenses/${expenseId}/edit`);
-    toast({ title: "Próximamente", description: "La edición de gastos estará disponible pronto." });
+    const expense = expenses.find(e => e.id === expenseId) || null;
+    setEditingExpense(expense);
+    setIsDialogOpen(true);
   };
 
   const handleDelete = (expense: Expense) => {
@@ -176,6 +180,26 @@ export default function ExpensesPage() {
                 </CardContent>
             </Card>
         </div>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) setEditingExpense(null);
+        }}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingExpense ? "Editar Gasto" : "Nuevo Gasto"}</DialogTitle>
+            </DialogHeader>
+            <div className="p-4">
+              <ExpenseForm
+                expenseToEdit={editingExpense || undefined}
+                onSuccess={async () => {
+                  setIsDialogOpen(false);
+                  setEditingExpense(null);
+                  await fetchExpenses();
+                }}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
       
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
